@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-primary-50: var(--custom-primary-50, var(--color-blue-50));
+  --color-primary-100: var(--custom-primary-100, var(--color-blue-100));
+  --color-primary-200: var(--custom-primary-200, var(--color-blue-200));
+  --color-primary-300: var(--custom-primary-300, var(--color-blue-300));
+  --color-primary-400: var(--custom-primary-400, var(--color-blue-400));
+  --color-primary-500: var(--custom-primary-500, var(--color-blue-500));
+  --color-primary-600: var(--custom-primary-600, var(--color-blue-600));
+  --color-primary-700: var(--custom-primary-700, var(--color-blue-700));
+  --color-primary-800: var(--custom-primary-800, var(--color-blue-800));
+  --color-primary-900: var(--custom-primary-900, var(--color-blue-900));
+  --color-primary-950: var(--custom-primary-950, var(--color-blue-950));
+
+  --animate-flow: flow 2s linear infinite;
+
+  @keyframes flow {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .fixed.inset-0 * {
+    visibility: visible;
+  }
+  .fixed.inset-0 {
+    position: absolute;
+    left: 0;
+    top: 0;
+    margin: 0;
+    padding: 0;
+    visibility: visible;
+  }
+  
+  /* Hide the print button when printing */
+  .fixed.inset-0 button {
+    display: none !important;
+  }
+}
+
+/* Leaflet Popup Overrides */
+.leaflet-popup.odp-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  overflow: hidden;
+}
+.leaflet-popup.odp-popup .leaflet-popup-content {
+  margin: 0;
+  width: auto !important;
+}
+.leaflet-popup.odp-popup .leaflet-popup-close-button {
+  z-index: 10;
+  top: 8px !important;
+  right: 8px !important;
+}

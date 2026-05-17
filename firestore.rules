@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      return isSignedIn() && request.auth.token.email in ['adityabiznet@gmail.com']; 
+    } 
+
+    function getUserTenantId() {
+      return isAdmin() ? 'biznet' : (
+        exists(/databases/$(database)/documents/system_users/$(request.auth.token.email)) ? 
+        get(/databases/$(database)/documents/system_users/$(request.auth.token.email)).data.tenantId : 'unknown'
+      );
+    }
+
+    function isTenant(tenantId) {
+       return isSignedIn() && getUserTenantId() == tenantId;
+    }
+
+    match /system_users/{email} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /schedules/{scheduleId} {
+      allow read, write: if true;
+    }
+    
+    match /customers/{customerId} {
+      allow read: if true;
+      allow create: if true; // allow member portal registration or tickets
+      allow update: if true; // allow them to update themselves (e.g. phone or payment)
+      allow delete: if isTenant(resource.data.tenantId);
+    }
+    
+    match /odps/{odpId} {
+      allow read: if isTenant(resource.data.tenantId);
+      allow create: if isTenant(request.resource.data.tenantId);
+      allow update: if isTenant(resource.data.tenantId) && isTenant(request.resource.data.tenantId);
+      allow delete: if isTenant(resource.data.tenantId);
+    }
+    
+    match /branding/{tenantId} {
+      allow read: if true;
+      allow write: if isAdmin() || isTenant(tenantId);
+    }
+
+    match /finance_transactions/{txId} {
+      allow create: if true;
+      allow read, update, delete: if isTenant(resource.data.tenantId) || isAdmin();
+    }
+
+    match /inventory_items/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /inventory_transactions/{txId} {
+      allow read, write: if true;
+    }
+
+    match /cctv_cameras/{camId} {
+      allow read: if isTenant(resource.data.tenantId);
+      allow create: if isTenant(request.resource.data.tenantId);
+      allow update: if isTenant(resource.data.tenantId) && isTenant(request.resource.data.tenantId);
+      allow delete: if isTenant(resource.data.tenantId);
+    }
+
+    match /cctv_events/{eventId} {
+      allow read: if isTenant(resource.data.tenantId);
+      allow create: if isTenant(request.resource.data.tenantId);
+      allow update: if isTenant(resource.data.tenantId) && isTenant(request.resource.data.tenantId);
+      allow delete: if isTenant(resource.data.tenantId);
+    }
+
+    match /tickets/{ticketId} {
+      allow read, write: if true; 
+    }
+    
+    match /technicians/{techId} {
+      allow read, write: if true;
+    }
+    
+    match /promos/{promoId} {
+      allow read, write: if true;
+    }
+
+    match /technicians_location/{userId} {
+      allow read, write: if true;
+    }
+
+    match /transactions/{txId} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

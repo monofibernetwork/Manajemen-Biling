@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System administrator or standard user",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "technician"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "name", "role", "createdAt"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Internet service subscriber",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "pppoeUsername": { "type": "string" },
+        "pppoePassword": { "type": "string" },
+        "ontSerialNumber": { "type": "string" },
+        "ontRxPower": { "type": "string" },
+        "speedPlan": { "type": "string" },
+        "status": { "type": "string", "enum": ["online", "offline"] },
+        "ipAddress": { "type": "string" },
+        "uptime": { "type": "string" },
+        "currentUpload": { "type": "string" },
+        "currentDownload": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["paid", "unpaid", "overdue"] },
+        "billingAmount": { "type": "number" },
+        "lastPaymentDate": { "type": "string" }
+      },
+      "required": ["name", "address", "phone", "pppoeUsername", "speedPlan", "status", "paymentStatus", "billingAmount"]
+    },
+    "Odp": {
+      "title": "Odp",
+      "description": "Optical Distribution Point",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "status": { "type": "string" },
+        "capacity": { "type": "string" },
+        "address": { "type": "string" }
+      },
+      "required": ["id", "location", "status", "capacity", "address"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Store application users/admins"
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/Customer" },
+      "description": "Store Internet customers"
+    },
+    "/odps/{odpId}": {
+      "schema": { "$ref": "#/entities/Odp" },
+      "description": "Store ODPs for mapping"
+    }
+  }
+}
