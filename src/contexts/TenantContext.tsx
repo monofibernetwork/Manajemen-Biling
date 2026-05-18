@@ -12,6 +12,7 @@ export interface TenantContextType {
   tenantId: string;
   branding: Branding;
   setBranding: React.Dispatch<React.SetStateAction<Branding>>;
+  adminRole: string;
 }
 
 export const defaultBranding: Branding = {
@@ -22,7 +23,8 @@ export const defaultBranding: Branding = {
 export const TenantContext = createContext<TenantContextType>({
   tenantId: 'default',
   branding: defaultBranding,
-  setBranding: () => {}
+  setBranding: () => {},
+  adminRole: 'superadmin'
 });
 
 export const useTenant = () => useContext(TenantContext);

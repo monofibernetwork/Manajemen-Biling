@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Search, Filter, History, AlertCircle, ArrowUpRight, ArrowDownLeft, Box, Truck, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Package, Plus, Search, Filter, History, AlertCircle, ArrowUpRight, ArrowDownLeft, Box, Truck, CheckCircle2, RotateCcw, Edit2, Trash2 } from 'lucide-react';
 import { useTenant } from '../contexts/TenantContext';
-import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, addDoc, updateDoc, doc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export function InventoryManagement() {
@@ -13,6 +13,7 @@ export function InventoryManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'stock' | 'history'>('stock');
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -62,18 +63,49 @@ export function InventoryManagement() {
     if (!form.name || form.quantity < 0) return alert('Data tidak valid');
     
     try {
-      await addDoc(collection(db, 'inventory_items'), {
-        ...form,
-        quantity: Number(form.quantity),
-        createdAt: new Date().toISOString(),
-        tenantId
-      });
+      if (editingItemId) {
+        await updateDoc(doc(db, 'inventory_items', editingItemId), {
+          ...form,
+          quantity: Number(form.quantity)
+        });
+        alert('Barang berhasil diperbarui!');
+      } else {
+        await addDoc(collection(db, 'inventory_items'), {
+          ...form,
+          quantity: Number(form.quantity),
+          createdAt: new Date().toISOString(),
+          tenantId
+        });
+        alert('Barang baru berhasil ditambahkan!');
+      }
       setIsModalOpen(false);
+      setEditingItemId(null);
       setForm({ name: '', category: 'ont', quantity: 0, unit: 'pcs', brand: '', notes: '' });
-      alert('Barang baru berhasil ditambahkan!');
     } catch (e) {
       console.error(e);
-      alert('Gagal menambah barang');
+      alert('Gagal menyimpan barang');
+    }
+  };
+
+  const handleEditClick = (item: any) => {
+    setForm({
+      name: item.name,
+      category: item.category,
+      quantity: item.quantity,
+      unit: item.unit,
+      brand: item.brand || '',
+      notes: item.notes || ''
+    });
+    setEditingItemId(item.id);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Hapus barang ${name}?`)) return;
+    try {
+      await deleteDoc(doc(db, 'inventory_items', id));
+    } catch(e) {
+      alert('Gagal menghapus barang');
     }
   };
 
@@ -142,7 +174,7 @@ export function InventoryManagement() {
             <ArrowUpRight size={20} /> Transaksi
           </button>
           <button 
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { setForm({ name: '', category: 'ont', quantity: 0, unit: 'pcs', brand: '', notes: '' }); setEditingItemId(null); setIsModalOpen(true); }}
             className="flex-1 sm:flex-none bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-sm shadow-primary-500/20"
           >
             <Plus size={20} /> Item Baru
@@ -205,6 +237,7 @@ export function InventoryManagement() {
                     <th className="p-4 font-semibold text-slate-600 text-sm">Merk/Tipe</th>
                     <th className="p-4 font-semibold text-slate-600 text-sm">Kategori</th>
                     <th className="p-4 font-semibold text-slate-600 text-sm text-right">Stok Aktual</th>
+                    <th className="p-4 font-semibold text-slate-600 text-sm text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -227,11 +260,21 @@ export function InventoryManagement() {
                           {item.quantity} <span className="text-[10px] uppercase ml-1 opacity-70">{item.unit}</span>
                         </span>
                       </td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => handleEditClick(item)} className="p-2 text-slate-400 hover:text-primary-600 rounded-lg transition-colors" title="Edit">
+                            <Edit2 size={16} />
+                          </button>
+                          <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition-colors" title="Hapus">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {filteredItems.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="p-10 text-center text-slate-500">
+                      <td colSpan={5} className="p-10 text-center text-slate-500">
                         <Package className="mx-auto text-slate-300 mb-3" size={40} />
                         <p className="font-medium">Tidak ada item inventaris yang ditemukan.</p>
                       </td>
@@ -301,7 +344,7 @@ export function InventoryManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-               <h3 className="font-bold text-lg text-slate-800">Tambah Item Inventaris</h3>
+               <h3 className="font-bold text-lg text-slate-800">{editingItemId ? 'Edit Item Inventaris' : 'Tambah Item Inventaris'}</h3>
              </div>
              <form onSubmit={handleAddItem} className="p-6 space-y-4">
                 <div>
@@ -341,7 +384,7 @@ export function InventoryManagement() {
                    </div>
                 </div>
                 <div className="pt-2 flex justify-end gap-3 border-t border-slate-100 mt-6 pt-4">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl">Batal</button>
+                  <button type="button" onClick={() => { setIsModalOpen(false); setEditingItemId(null); setForm({ name: '', category: 'ont', quantity: 0, unit: 'pcs', brand: '', notes: '' }); }} className="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl">Batal</button>
                   <button type="submit" className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-xl font-semibold shadow-sm">Simpan</button>
                 </div>
              </form>

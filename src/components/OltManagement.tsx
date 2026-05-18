@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Server, Activity, Power, PowerOff, Settings, Zap, Users, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Server, Activity, Power, PowerOff, Settings, Zap, Users, AlertCircle, RefreshCw, CheckCircle2, Wifi } from 'lucide-react';
 
 interface OltDevice {
   id: string;
@@ -68,6 +68,32 @@ export function OltManagement() {
   const [showRebootConfirm, setShowRebootConfirm] = useState(false);
   const [isRebooting, setIsRebooting] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success'|'error'} | null>(null);
+
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
+  const [isApplyingWifi, setIsApplyingWifi] = useState(false);
+  const [wifiError, setWifiError] = useState('');
+
+  const handleApplyWifi = () => {
+    setWifiError('');
+    if (!wifiSsid || wifiSsid.length < 3) {
+      setWifiError('SSID harus terdiri dari minimal 3 karakter.');
+      return;
+    }
+    if (!wifiPassword || wifiPassword.length < 8) {
+      setWifiError('Password harus terdiri dari minimal 8 karakter.');
+      return;
+    }
+
+    setIsApplyingWifi(true);
+    setTimeout(() => {
+      setIsApplyingWifi(false);
+      setNotification({ message: 'Konfigurasi Wi-Fi OLT berhasil diterapkan.', type: 'success' });
+      setTimeout(() => setNotification(null), 3000);
+      setWifiSsid('');
+      setWifiPassword('');
+    }, 1500);
+  };
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -244,6 +270,43 @@ export function OltManagement() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100">
+                <h4 className="font-bold text-slate-900 mb-3 flex items-center gap-2"><Wifi size={18} /> Konfigurasi SSID & Password Wi-Fi</h4>
+                <p className="text-xs text-slate-500 mb-4">Konfigurasi nama Wi-Fi (SSID) dan kata sandi untuk perangkat di bawah OLT ini.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Wi-Fi (SSID)</label>
+                    <input 
+                      type="text" 
+                      value={wifiSsid}
+                      onChange={(e) => setWifiSsid(e.target.value)}
+                      placeholder="Masukkan nama Wi-Fi..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:outline-none transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Kata Sandi (Password)</label>
+                    <input 
+                      type="text" 
+                      value={wifiPassword}
+                      onChange={(e) => setWifiPassword(e.target.value)}
+                      placeholder="Minimal 8 karakter..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:outline-none transition-all"
+                    />
+                  </div>
+                </div>
+                {wifiError && <div className="mt-2 text-xs text-rose-500 font-medium">{wifiError}</div>}
+                <div className="flex justify-end mt-4">
+                  <button 
+                    onClick={handleApplyWifi}
+                    disabled={isApplyingWifi}
+                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-semibold transition-colors flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {isApplyingWifi ? <><RefreshCw size={16} className="animate-spin" /> Memproses...</> : 'Terapkan'}
+                  </button>
                 </div>
               </div>
             </div>

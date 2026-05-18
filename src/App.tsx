@@ -674,10 +674,14 @@ export default function App() {
         
         let isTechnicianMode = localStorage.getItem('app_mode') === '"technician_portal"';
         
-        if (userEmail === 'adityabiznet@gmail.com') {
+        if (userEmail === 'adityabiznet@gmail.com' || userEmail === 'owner.aditya@dreampaymanager.app') {
           hasAccess = true;
           currentTenant = 'biznet';
           currentRole = 'superadmin';
+        } else if (userEmail === 'adityaf90000@gmail.com' || userEmail === 'admin.aditya@dreampaymanager.app') {
+          hasAccess = true;
+          currentTenant = 'biznet';
+          currentRole = 'admin';
         } else if (isTechnicianMode) {
           hasAccess = true;
           currentTenant = 'biznet';
@@ -696,7 +700,19 @@ export default function App() {
                 alert(`Akses Ditolak: Lisensi Anda expired atau disuspend.`);
               }
             } else {
-              alert(`Akses Ditolak: Email ${userEmail} tidak memiliki lisensi akses.`);
+              // Jika baru mendaftar / tidak ada di system_users, izinkan dan otomatis buat data default
+              hasAccess = true;
+              currentTenant = user.uid || 'default'; // setiap user dapat tenant nya sendiri by default
+              currentRole = 'superadmin';
+              
+              // Simpan sebagai akun baru (Background task)
+              setDoc(doc(db, 'system_users', userEmail), {
+                email: userEmail,
+                status: 'active',
+                role: 'superadmin',
+                tenantId: currentTenant,
+                createdAt: new Date().toISOString()
+              }).catch(console.error);
             }
           } catch (e: any) {
             console.error('Verifikasi akses error', e);
@@ -860,7 +876,7 @@ export default function App() {
 
   if (appMode === 'technician_portal') {
     return (
-      <TenantContext.Provider value={{ tenantId, branding, setBranding }}>
+      <TenantContext.Provider value={{ tenantId, branding, setBranding, adminRole }}>
         <TechnicianPortal onLogout={handleLogout} odps={odps} onUpdateOdp={handleUpdateOdpStore} />
       </TenantContext.Provider>
     );
@@ -868,9 +884,9 @@ export default function App() {
 
   if (appMode === 'login') {
     return (
-      <TenantContext.Provider value={{ tenantId, branding, setBranding }}>
+      <TenantContext.Provider value={{ tenantId, branding, setBranding, adminRole }}>
         <AdminLogin 
-          onLogin={() => {}} 
+          onLogin={() => setAppMode('admin')} 
           onCustomerPortal={() => setAppMode('customer_portal')} 
           onTechnicianPortal={() => setAppMode('technician_portal')}
         />
@@ -880,7 +896,7 @@ export default function App() {
 
   if (appMode === 'customer_portal') {
     return (
-      <TenantContext.Provider value={{ tenantId, branding, setBranding }}>
+      <TenantContext.Provider value={{ tenantId, branding, setBranding, adminRole }}>
       <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
         <header className="bg-slate-50/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
           <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -896,10 +912,11 @@ export default function App() {
               </span>
             </div>
             <button 
-              onClick={() => setAppMode('login')}
-              className="text-sm font-medium text-slate-400 hover:text-slate-900 transition-colors"
+              onClick={handleLogout}
+              className="text-sm font-medium text-rose-500 hover:text-rose-600 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-rose-50 border border-transparent hover:border-rose-100"
             >
-              Kembali
+              <LogOut size={16} />
+              Logout
             </button>
           </div>
         </header>
@@ -914,19 +931,19 @@ export default function App() {
   const allMenuGroups = [
     {
       group: 'Utama',
-      roles: ['superadmin', 'admin', 'finance', 'technical', 'cs'],
+      roles: ['superadmin', 'admin', 'finance', 'technical', 'cs', 'viewer'],
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['superadmin', 'admin', 'finance', 'technical', 'cs'] },
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['superadmin', 'admin', 'finance', 'technical', 'cs', 'viewer'] },
       ]
     },
     {
       group: 'Administrasi',
-      roles: ['superadmin', 'admin', 'finance', 'cs'],
+      roles: ['superadmin', 'admin', 'finance', 'cs', 'viewer'],
       items: [
-        { id: 'customers', label: 'Pelanggan', icon: Users, roles: ['superadmin', 'admin', 'finance', 'cs'] },
-        { id: 'billing', label: 'Tagihan & Pembayaran', icon: Wallet, roles: ['superadmin', 'admin', 'finance'] },
+        { id: 'customers', label: 'Pelanggan', icon: Users, roles: ['superadmin', 'admin', 'finance', 'cs', 'viewer'] },
+        { id: 'billing', label: 'Tagihan & Pembayaran', icon: Wallet, roles: ['superadmin', 'admin', 'finance', 'viewer'] },
         { id: 'payment_verification', label: 'Konfirmasi Pembayaran', icon: CheckCircle2, roles: ['superadmin', 'admin', 'finance'] },
-        { id: 'cashflow', label: 'Kas & Keuangan', icon: DollarSign, roles: ['superadmin', 'admin', 'finance'] },
+        { id: 'cashflow', label: 'Kas & Keuangan', icon: DollarSign, roles: ['superadmin', 'admin', 'finance', 'viewer'] },
         { id: 'fup_management', label: 'Kebijakan FUP', icon: Shield, roles: ['superadmin', 'admin', 'technical'] },
         { id: 'promo_management', label: 'Promosi & Diskon', icon: Gift, roles: ['superadmin', 'admin', 'finance'] },
         { id: 'portal_member', label: 'Portal Member', icon: UserCircle, roles: ['superadmin', 'admin', 'cs'] },
@@ -934,35 +951,35 @@ export default function App() {
     },
     {
       group: 'Teknisi & Penugasan',
-      roles: ['superadmin', 'admin', 'technical', 'cs'],
+      roles: ['superadmin', 'admin', 'technical', 'cs', 'viewer'],
       items: [
         { id: 'new_installation', label: 'Pemasangan Baru', icon: CalendarDays, roles: ['superadmin', 'admin', 'technical', 'cs'] },
-        { id: 'installation_history', label: 'Riwayat Pemasangan', icon: History, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'ticket_management', label: 'Tiket Gangguan (Troubleshooting)', icon: Wrench, roles: ['superadmin', 'admin', 'technical', 'cs'] },
-        { id: 'technician_tracking', label: 'Pelacakan Teknisi GPS', icon: MapIcon, roles: ['superadmin', 'admin'] },
+        { id: 'installation_history', label: 'Riwayat Pemasangan', icon: History, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'ticket_management', label: 'Tiket Gangguan (Troubleshooting)', icon: Wrench, roles: ['superadmin', 'admin', 'technical', 'cs', 'viewer'] },
+        { id: 'technician_tracking', label: 'Pelacakan Teknisi GPS', icon: MapIcon, roles: ['superadmin', 'admin', 'viewer'] },
       ]
     },
     {
       group: 'Infrastruktur',
-      roles: ['superadmin', 'admin', 'technical'],
+      roles: ['superadmin', 'admin', 'technical', 'viewer'],
       items: [
-        { id: 'network_topology', label: 'Topologi Jaringan', icon: Network, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'mikrotik_manager', label: 'Bandwidth (MikroTik)', icon: Server, roles: ['superadmin', 'admin', 'technical'] },
+        { id: 'network_topology', label: 'Topologi Jaringan', icon: Network, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'mikrotik_manager', label: 'Bandwidth (MikroTik)', icon: Server, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
         { id: 'olt_management', label: 'Manajemen OLT', icon: Server, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'odp_map', label: 'Peta ODP', icon: MapIcon, roles: ['superadmin', 'admin', 'technical'] },
+        { id: 'odp_map', label: 'Peta ODP', icon: MapIcon, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
         { id: 'remote_onu', label: 'Remote ONU (C-Data)', icon: Wifi, roles: ['superadmin', 'admin', 'technical'] },
         { id: 'genia_acs', label: 'GeniaACS (TR-069)', icon: Server, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'inventory', label: 'Gudang & Inventaris', icon: Box, roles: ['superadmin', 'admin', 'technical'] },
+        { id: 'inventory', label: 'Gudang & Inventaris', icon: Box, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
       ]
     },
     {
       group: 'Monitoring',
-      roles: ['superadmin', 'admin', 'technical'],
+      roles: ['superadmin', 'admin', 'technical', 'viewer'],
       items: [
-        { id: 'monitoring', label: 'Monitoring SNMP', icon: Activity, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'odp_monitoring', label: 'Monitoring ODP', icon: Activity, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'cctv_monitoring', label: 'CCTV & DVR', icon: Camera, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'system_logs', label: 'Log Sistem', icon: Terminal, roles: ['superadmin', 'admin'] },
+        { id: 'monitoring', label: 'Monitoring SNMP', icon: Activity, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'odp_monitoring', label: 'Monitoring ODP', icon: Activity, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'cctv_monitoring', label: 'CCTV & DVR', icon: Camera, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'system_logs', label: 'Log Sistem', icon: Terminal, roles: ['superadmin', 'admin', 'viewer'] },
       ]
     },
     {
@@ -1013,7 +1030,7 @@ export default function App() {
   }
 
   return (
-    <TenantContext.Provider value={{ tenantId, branding, setBranding }}>
+    <TenantContext.Provider value={{ tenantId, branding, setBranding, adminRole }}>
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex">
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
@@ -1117,12 +1134,14 @@ export default function App() {
         
         <div className="p-4 border-t border-slate-200 bg-slate-50/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary-600/20 border-2 border-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-primary-600 text-xs">
-              AF
+            <div className="w-10 h-10 rounded-full bg-primary-600/20 border-2 border-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-primary-600 text-xs uppercase">
+              {auth.currentUser?.email?.substring(0, 2) || 'AD'}
             </div>
             <div className="overflow-hidden w-full">
-              <p className="text-xs font-semibold text-slate-900 truncate">Aditya Firmansyah</p>
-              <p className="text-[10px] text-slate-500 font-mono truncate">adityabiznet@gmail.com</p>
+              <p className="text-xs font-semibold text-slate-900 truncate">
+                {auth.currentUser?.displayName || (adminRole === 'superadmin' ? 'Superadmin' : 'Administrator')}
+              </p>
+              <p className="text-[10px] text-slate-500 font-mono truncate">{auth.currentUser?.email || 'admin@example.com'}</p>
             </div>
           </div>
         </div>
@@ -1252,10 +1271,11 @@ export default function App() {
               </div>
               <button 
                 onClick={handleLogout}
-                className="relative p-2 text-rose-600 hover:bg-rose-500/10 hover:text-rose-300 rounded-full transition-colors border border-slate-200 hover:border-rose-500/30 bg-slate-50/50"
+                className="relative px-3 py-1.5 flex items-center gap-2 text-rose-600 hover:bg-rose-500/10 hover:text-rose-700 rounded-xl transition-colors border border-slate-200 hover:border-rose-500/30 bg-slate-50/50 text-sm font-medium"
                 title="Logout"
               >
                 <LogOut size={18} />
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           </div>

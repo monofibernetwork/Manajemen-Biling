@@ -85,9 +85,30 @@ export function TicketManagement() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, status: string) => {
+  const handleUpdateStatus = async (ticket: any, newStatus: string) => {
+    if (ticket.status === newStatus) return;
     try {
-      await updateDoc(doc(db, 'tickets', id), { status });
+      const { updateDoc, doc, arrayUnion } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      
+      const getStatusText = (s: string) => {
+        if (s === 'open') return 'Menunggu';
+        if (s === 'in_progress') return 'Dikerjakan';
+        if (s === 'resolved') return 'Selesai';
+        return s;
+      };
+
+      const oldLabel = getStatusText(ticket.status);
+      const newLabel = getStatusText(newStatus);
+
+      await updateDoc(doc(db, 'tickets', ticket.id), { 
+        status: newStatus,
+        messages: arrayUnion({
+          sender: 'system',
+          text: `Status tiket diubah dari '${oldLabel}' menjadi '${newLabel}'`,
+          timestamp: new Date().toISOString()
+        })
+      });
     } catch (e) {
       console.error(e);
     }
@@ -212,7 +233,7 @@ export function TicketManagement() {
                       </button>
                       <select
                         value={ticket.status}
-                        onChange={(e) => handleUpdateStatus(ticket.id, e.target.value)}
+                        onChange={(e) => handleUpdateStatus(ticket, e.target.value)}
                         className="bg-slate-50 border border-slate-200 text-xs rounded px-2 py-1 focus:outline-none"
                       >
                          <option value="open">Open</option>
@@ -316,15 +337,21 @@ export function TicketManagement() {
                     <div className="flex items-center justify-center h-full text-slate-400 text-sm">Belum ada pesan koordinasi.</div>
                     ) : (
                     (selectedTicketDetail.messages || []).map((msg: any, i: number) => (
-                        <div key={i} className={`flex flex-col ${msg.sender === 'admin' ? 'items-end' : 'items-start'}`}>
-                            <span className="text-[10px] text-slate-400 font-mono mb-0.5 px-1">{msg.sender === 'admin' ? 'Admin / NOC' : 'Teknisi'}</span>
-                            <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === 'admin' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm'}`}>
-                                {msg.text.includes('http') ? (
-                                <a href={msg.text.split(' ').find((w: string) => w.startsWith('http'))} target="_blank" rel="noopener noreferrer" className="underline font-medium text-blue-500">
-                                   📍 Buka Lokasi/Link
-                                </a>
-                                ) : msg.text}
-                            </div>
+                        <div key={i} className={`flex flex-col ${msg.sender === 'admin' ? 'items-end' : msg.sender === 'system' ? 'items-center my-2' : 'items-start'}`}>
+                            {msg.sender === 'system' ? (
+                                <div className="bg-slate-100 text-slate-500 text-[10px] px-3 py-1 rounded-full font-mono text-center max-w-[85%]">{msg.text}</div>
+                            ) : (
+                                <>
+                                    <span className="text-[10px] text-slate-400 font-mono mb-0.5 px-1">{msg.sender === 'admin' ? 'Admin / NOC' : 'Teknisi'}</span>
+                                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === 'admin' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm'}`}>
+                                        {msg.text.includes('http') ? (
+                                        <a href={msg.text.split(' ').find((w: string) => w.startsWith('http'))} target="_blank" rel="noopener noreferrer" className="underline font-medium text-blue-500">
+                                           📍 Buka Lokasi/Link
+                                        </a>
+                                        ) : msg.text}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ))
                     )}

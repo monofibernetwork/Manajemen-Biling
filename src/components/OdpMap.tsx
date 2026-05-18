@@ -67,44 +67,40 @@ const DISTRIBUTION_PATHS = [
 function OdpMarker({ odp }: { odp: Odp; key?: React.Key }) {
   const hasLossCustomer = odp.customers?.some(c => typeof c === 'object' && c.status === 'Loss');
   
-  let displayChar = 'N';
-  let pinBgColor = 'bg-[#0E9F6E]';
-
-  if (odp.status === 'Full') {
-    displayChar = 'F';
-    pinBgColor = 'bg-[#F59E0B]'; // Amber
-  } else if (odp.status === 'Warning') {
-    displayChar = 'W';
-    pinBgColor = 'bg-[#EAB308]'; // Yellow
-  } else if (odp.status === 'Loss' || hasLossCustomer) {
-    displayChar = 'L';
-    pinBgColor = 'bg-[#E02424]'; // Red
-  } else if (odp.status === 'Rusak') {
-    displayChar = 'R';
-    pinBgColor = 'bg-[#E02424]'; // Red
-  } else if (odp.status === 'Normal') {
-    displayChar = 'N';
-    pinBgColor = 'bg-[#0E9F6E]'; // Emerald
-  }
-
   const [usedStr, totalStr] = odp.capacity.split('/');
   const used = parseInt(usedStr) || 0;
   const total = parseInt(totalStr) || 0;
+  const capacityPercentage = total > 0 ? (used / total) * 100 : 0;
+
+  let pinBgColor = 'bg-[#0E9F6E]'; // Green default (<80%)
+  let arrowColor = 'border-t-[#0E9F6E]';
+  
+  if (odp.status === 'Loss' || odp.status === 'Rusak' || hasLossCustomer) {
+    pinBgColor = 'bg-[#E02424]'; // Red
+    arrowColor = 'border-t-[#E02424]';
+  } else if (capacityPercentage >= 100 || odp.status === 'Full') {
+    pinBgColor = 'bg-[#E02424]'; // Red
+    arrowColor = 'border-t-[#E02424]';
+  } else if (capacityPercentage >= 80 || odp.status === 'Warning') {
+    pinBgColor = 'bg-[#EAB308]'; // Yellow
+    arrowColor = 'border-t-[#EAB308]';
+  }
 
   const iconHtml = `
-    <div class="relative flex flex-col items-center justify-center -mt-3.5">
-      <div class="w-7 h-7 ${pinBgColor} rounded-full flex items-center justify-center text-white font-bold text-xs shadow-lg ring-2 ring-transparent" style="border-bottom-right-radius: 2px; transform: rotate(45deg);">
-          <span class="mt-px block" style="transform: rotate(-45deg);">${displayChar}</span>
+    <div class="relative flex flex-col items-center justify-center -mt-6">
+      <div class="px-2 py-0.5 ${pinBgColor} rounded-md flex flex-col items-center justify-center text-white font-bold text-[10px] shadow-lg min-w-[32px] border border-white/20 whitespace-nowrap tracking-wider">
+          <span class="leading-tight">${used}/${total}</span>
       </div>
+      <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px] ${arrowColor}"></div>
     </div>
   `;
 
   const icon = L.divIcon({
     className: 'custom-leaflet-marker',
     html: iconHtml,
-    iconSize: [28, 28],
-    iconAnchor: [14, 28],
-    popupAnchor: [0, -28]
+    iconSize: [40, 26],
+    iconAnchor: [20, 26],
+    popupAnchor: [0, -26]
   });
 
   return (
@@ -756,21 +752,27 @@ export function OdpMap({ odps: propOdps, setOdps: _setOdps, customers = [] }: an
       {/* Map Area */}
       <div className="flex-1 relative bg-slate-100 w-full h-full z-0 font-sans">
           {/* Bottom Right Legend */}
-          <div className="absolute bottom-6 right-6 z-10 bg-white rounded-lg shadow-lg border border-slate-200 p-4 w-[220px]">
-            <h4 className="font-bold text-slate-900 text-sm mb-3">ODP</h4>
+          <div className="absolute bottom-6 right-6 z-10 bg-white rounded-lg shadow-lg border border-slate-200 p-4 w-[240px]">
+            <h4 className="font-bold text-slate-900 text-sm mb-3">Status ODP</h4>
             
-            <div className="space-y-2.5 mb-4">
+            <div className="space-y-3 mb-4">
               <div className="flex items-center gap-3">
-                 <div className="w-6 h-6 bg-[#0E9F6E] rounded-full flex items-center justify-center text-white font-bold text-[10px]" style={{ borderBottomRightRadius: '2px', transform: 'rotate(45deg)' }}>
-                    <span style={{ transform: 'rotate(-45deg)' }}>A</span>
+                 <div className="bg-[#0E9F6E] rounded px-2 py-0.5 text-white font-bold text-[10px] min-w-[32px] text-center border border-white/20">
+                    <span className="leading-tight">8/16</span>
                  </div>
-                 <span className="text-sm font-medium text-slate-700">Available</span>
+                 <span className="text-xs font-medium text-slate-700">Aman (&lt;80%)</span>
               </div>
               <div className="flex items-center gap-3">
-                 <div className="w-6 h-6 bg-[#E02424] rounded-full flex items-center justify-center text-white font-bold text-[10px]" style={{ borderBottomRightRadius: '2px', transform: 'rotate(45deg)' }}>
-                    <span style={{ transform: 'rotate(-45deg)' }}>F</span>
+                 <div className="bg-[#EAB308] rounded px-2 py-0.5 text-white font-bold text-[10px] min-w-[32px] text-center border border-white/20">
+                    <span className="leading-tight">14/16</span>
                  </div>
-                 <span className="text-sm font-medium text-slate-700">Full</span>
+                 <span className="text-xs font-medium text-slate-700">Peringatan (80-99%)</span>
+              </div>
+              <div className="flex items-center gap-3">
+                 <div className="bg-[#E02424] rounded px-2 py-0.5 text-white font-bold text-[10px] min-w-[32px] text-center border border-white/20">
+                    <span className="leading-tight">16/16</span>
+                 </div>
+                 <span className="text-xs font-medium text-slate-700">Penuh / Gangguan</span>
               </div>
             </div>
 

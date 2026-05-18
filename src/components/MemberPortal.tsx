@@ -395,18 +395,6 @@ export function MemberPortal() {
                 )}
               </button>
             </form>
-            
-            
-            <div className="mt-8 text-center">
-              <div className="p-4 bg-white/50 rounded-xl border border-slate-300/50">
-                <p className="text-xs text-slate-400 font-medium mb-2">Simulasi Akun (Pilih salah satu nomor):</p>
-                <ul className="text-xs text-slate-500 text-left font-mono space-y-1">
-                  <li>- 081234567890 (Budi Santoso)</li>
-                  <li>- 085712312312 (Siti Aminah - Offline/Unpaid)</li>
-                  <li>- 081122334455 (Rina Kusumawati - Overdue)</li>
-                </ul>
-              </div>
-            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Customer } from '../types';
-import { Wifi, WifiOff, MoreVertical, X, Phone, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Edit3, Loader2, SlidersHorizontal, Check, History, Activity, Clock, Calendar, RefreshCw, Server } from 'lucide-react';
+import { Wifi, WifiOff, MoreVertical, X, Phone, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Edit3, Loader2, SlidersHorizontal, Check, History, Activity, Clock, Calendar, RefreshCw, Server, Ban } from 'lucide-react';
 import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useNavigate } from 'react-router-dom';
@@ -286,6 +286,23 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
       setCustomerToDelete(null);
     } catch (err: any) {
       alert('Error deleting: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleIsolir = async (id: string, name: string) => {
+    if (!confirm(`Anda yakin ingin mengisolir pelanggan ${name}?`)) return;
+    setIsLoading(true);
+    setLoadingMessage(`Mengisolir pelanggan ${name}...`);
+    try {
+      await updateDoc(doc(db, 'customers', id), { 
+        status: 'isolir',
+        isIsolated: true 
+      });
+      setNotification({ message: `Pelanggan ${name} berhasil diisolir.`, type: 'success' });
+    } catch (err: any) {
+      alert('Error mengisolir pelanggan: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -911,8 +928,17 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
                     >
                       <Trash2 size={16} />
                     </button>
+                    {(cust.status !== 'isolir' && !cust.isIsolated) && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleIsolir(cust.id, cust.name); }}
+                        className="text-slate-500 hover:text-amber-500 p-2 rounded-lg hover:bg-white transition-colors"
+                        title="Isolir Pelanggan"
+                      >
+                        <Ban size={16} />
+                      </button>
+                    )}
                     <button 
-                      className="text-slate-500 hover:text-primary-600 p-2 rounded-lg hover:bg-white transition-colors"
+                      className="text-slate-500 hover:text-primary-700 p-2 rounded-lg hover:bg-primary-50 border border-transparent hover:border-primary-200 active:text-primary-800 active:bg-primary-100 transition-all shadow-sm"
                       onClick={(e) => { e.stopPropagation(); setCustomerToEdit(cust); }}
                       title="Edit Detail"
                     >
@@ -971,7 +997,10 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
               <div className="flex flex-col items-end gap-1.5 shrink-0 z-10">
                 <div className="flex items-center justify-end gap-1">
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(cust.id, cust.name); }} className="text-slate-400 hover:text-rose-500 p-1 rounded transition-colors" title="Hapus Pelanggan"><Trash2 size={16} /></button>
-                  <button onClick={(e) => { e.stopPropagation(); setCustomerToEdit(cust); }} className="text-slate-400 hover:text-primary-600 p-1 rounded transition-colors"><Edit3 size={16} /></button>
+                  {(cust.status !== 'isolir' && !cust.isIsolated) && (
+                    <button onClick={(e) => { e.stopPropagation(); handleIsolir(cust.id, cust.name); }} className="text-slate-400 hover:text-amber-500 p-1 rounded transition-colors" title="Isolir Pelanggan"><Ban size={16} /></button>
+                  )}
+                  <button onClick={(e) => { e.stopPropagation(); setCustomerToEdit(cust); }} className="text-slate-400 hover:text-primary-700 hover:bg-primary-50 p-1 rounded border border-transparent hover:border-primary-200 active:text-primary-800 active:bg-primary-100 transition-all shadow-sm" title="Edit Detail"><Edit3 size={16} /></button>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
                   cust.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' :

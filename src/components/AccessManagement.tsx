@@ -12,8 +12,14 @@ export function AccessManagement() {
   const [newValidUntil, setNewValidUntil] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   const { tenantId } = useTenant();
+
+  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   useEffect(() => {
     if (!tenantId) return;
@@ -46,8 +52,9 @@ export function AccessManagement() {
       setNewEmail('');
       setNewValidUntil('');
       setIsAdding(false);
+      showNotification('Pengguna berhasil ditambahkan');
     } catch (e: any) {
-      alert('Gagal menambah user: ' + e.message);
+      showNotification('Gagal menambah user: ' + e.message, 'error');
     }
   };
 
@@ -58,8 +65,9 @@ export function AccessManagement() {
         ...user,
         status: user.status === 'active' ? 'suspended' : 'active'
       });
+      showNotification('Status pengguna berhasil diubah');
     } catch (e: any) {
-      alert('Gagal mengubah status: ' + e.message);
+      showNotification('Gagal mengubah status: ' + e.message, 'error');
     }
   };
 
@@ -68,8 +76,9 @@ export function AccessManagement() {
     if (!confirm(`Hapus akses untuk ${user.email}?`)) return;
     try {
       await deleteDoc(doc(db, 'system_users', user.id));
+      showNotification('Pengguna berhasil dihapus');
     } catch (e: any) {
-      alert('Gagal menghapus user: ' + e.message);
+      showNotification('Gagal menghapus user: ' + e.message, 'error');
     }
   };
 
@@ -109,6 +118,7 @@ export function AccessManagement() {
                  <option value="finance">Finance / Keuangan</option>
                  <option value="technical">Teknisi / TNA</option>
                  <option value="cs">Customer Service</option>
+                 <option value="viewer">Viewer (Read Only)</option>
               </select>
             </div>
             <div>
@@ -121,6 +131,13 @@ export function AccessManagement() {
             </div>
           </div>
           <p className="text-[10px] text-slate-500 mt-3">* Kosongkan tanggal jika berlaku selamanya (seumur hidup).</p>
+        </div>
+      )}
+
+      {notification && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl animate-in slide-in-from-bottom-4 fade-in duration-300 ${notification.type === 'error' ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'}`}>
+          {notification.type === 'error' ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
+          <span className="text-sm font-semibold">{notification.message}</span>
         </div>
       )}
 

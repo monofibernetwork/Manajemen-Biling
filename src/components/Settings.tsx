@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, Copy, ServerCog, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, ServerCog, Plus, Trash2, Key, Shield, Wifi } from 'lucide-react';
 import { useTenant } from '../contexts/TenantContext';
 import { getInternetPackages, saveInternetPackages, InternetPackage } from '../lib/packages';
+import { AccessManagement } from './AccessManagement';
 
 interface SettingsProps {
   isWaBillingEnabled?: boolean;
@@ -11,6 +12,7 @@ interface SettingsProps {
 export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: SettingsProps) {
   const { tenantId, branding, setBranding } = useTenant();
   
+  const [activeTab, setActiveTab] = useState<'general' | 'access' | 'packages'>('general');
   const [logoUrl, setLogoUrl] = useState(branding?.logoUrl || '');
   const [businessName, setBusinessName] = useState(branding?.businessName || 'Dream Paymanager');
   const [primaryColorHex, setPrimaryColorHex] = useState(branding?.primaryColorHex || '#ea580c');
@@ -176,7 +178,7 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
   };
 
   const handleAddPackage = () => {
-    setPackages([...packages, { name: '', price: 0, desc: '' }]);
+    setPackages([...packages, { name: '', price: 0, desc: '', downloadSpeed: '', uploadSpeed: '' }]);
   };
 
   const handleUpdatePackage = (index: number, key: keyof InternetPackage, value: any) => {
@@ -197,9 +199,111 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
   }
 
   return (
-    <>
-      <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm mb-6">
-        <div className="p-6 border-b border-slate-200 bg-white/50">
+    <div className="space-y-6">
+      <div className="flex bg-slate-200/50 p-1.5 rounded-2xl w-fit mb-6">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'general' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <ServerCog size={18} />
+          Sistem & Gateway
+        </button>
+        <button
+          onClick={() => setActiveTab('packages')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'packages' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <Wifi size={18} />
+          Paket Layanan
+        </button>
+        <button
+          onClick={() => setActiveTab('access')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'access' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+        >
+          <Shield size={18} />
+          Manajemen Akses
+        </button>
+      </div>
+
+      {activeTab === 'access' ? (
+        <AccessManagement />
+      ) : activeTab === 'packages' ? (
+        <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm mb-6">
+          <div className="p-6 border-b border-slate-200 bg-white/50 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-400 tracking-wider uppercase">Paket Layanan</h2>
+              <p className="text-[10px] text-slate-500 font-mono mt-1">Kelola opsi paket internet yang tersedia.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddPackage}
+              className="px-4 py-2 bg-primary-600 text-white hover:bg-primary-700 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-sm"
+            >
+              <Plus size={16} /> Tambah Paket
+            </button>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {packages.map((pkg, idx) => (
+                <div key={idx} className="flex flex-col gap-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl relative group transition-all hover:bg-slate-100/50">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1.5">Nama Paket</label>
+                      <input type="text" value={pkg.name} onChange={e => handleUpdatePackage(idx, 'name', e.target.value)} placeholder="Misal: Pro 50 Mbps" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all font-semibold" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1.5">Harga (Rp)</label>
+                      <input type="number" value={pkg.price} onChange={e => handleUpdatePackage(idx, 'price', Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1.5">Kecepatan Download</label>
+                      <input type="text" value={pkg.downloadSpeed || ''} onChange={e => handleUpdatePackage(idx, 'downloadSpeed', e.target.value)} placeholder="Misal: 50 Mbps" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1.5">Kecepatan Upload</label>
+                      <input type="text" value={pkg.uploadSpeed || ''} onChange={e => handleUpdatePackage(idx, 'uploadSpeed', e.target.value)} placeholder="Misal: 25 Mbps" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1.5">Deskripsi Singkat</label>
+                    <input type="text" value={pkg.desc} onChange={e => handleUpdatePackage(idx, 'desc', e.target.value)} placeholder="Misal: Gaming & Download ngebut" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all" />
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => handleRemovePackage(idx)}
+                    className="absolute right-3 top-3 p-2 text-rose-500 hover:bg-rose-100 rounded-xl opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                    title="Hapus paket"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+              {packages.length === 0 && (
+                <div className="text-center py-12 bg-slate-50 rounded-3xl border-2 border-slate-200 border-dashed">
+                  <Wifi className="mx-auto text-slate-300 mb-3" size={40} />
+                  <p className="text-slate-500 font-medium tracking-tight">Belum ada paket layanan.</p>
+                  <p className="text-sm text-slate-400 mt-1">Tambahkan paket internet untuk ditawarkan kepada pelanggan Anda.</p>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end pt-6 mt-6 border-t border-slate-100">
+              <button 
+                onClick={handleSaveBranding}
+                disabled={isSavingBranding}
+                className="px-6 py-3 rounded-xl text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSavingBranding ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Menyimpan...</>
+                ) : (
+                  'Simpan Perubahan'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm mb-6">
+            <div className="p-6 border-b border-slate-200 bg-white/50">
           <h2 className="text-sm font-semibold text-slate-400 tracking-wider uppercase">Pengaturan Toko / Bisnis</h2>
           <p className="text-[10px] text-slate-500 font-mono mt-1">Kustomisasi Branding Aplikasi (White-label)</p>
         </div>
@@ -254,60 +358,30 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
               </div>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">URL Logo Bisnis (PNG/JPG)</label>
-              <input 
-                type="text" 
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all" 
-                placeholder="https://example.com/logo.png"
-              />
-            </div>
-
-            <div className="md:col-span-2 pt-4 border-t border-slate-100">
-              <div className="flex items-center justify-between mb-4">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Katalog Layanan Internet</label>
-                <button
-                  type="button"
-                  onClick={handleAddPackage}
-                  className="px-3 py-1.5 bg-primary-50 text-primary-700 hover:bg-primary-100 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                >
-                  <Plus size={14} /> Tambah Paket
-                </button>
-              </div>
-              
-              <div className="space-y-3">
-                {packages.map((pkg, idx) => (
-                  <div key={idx} className="flex flex-col sm:flex-row gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl relative group">
-                    <div className="flex-1 space-y-3">
-                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1">Nama Paket</label>
-                            <input type="text" value={pkg.name} onChange={e => handleUpdatePackage(idx, 'name', e.target.value)} placeholder="Misal: 50 Mbps" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary-500" />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1">Harga (Rp)</label>
-                            <input type="number" value={pkg.price} onChange={e => handleUpdatePackage(idx, 'price', Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-primary-500" />
-                          </div>
-                       </div>
-                       <div>
-                          <label className="block text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1">Deskripsi Singkat</label>
-                          <input type="text" value={pkg.desc} onChange={e => handleUpdatePackage(idx, 'desc', e.target.value)} placeholder="Misal: Gaming & Download ngebut" className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[11px] outline-none focus:border-primary-500" />
-                       </div>
-                    </div>
-                    <button 
-                      type="button" 
-                      onClick={() => handleRemovePackage(idx)}
-                      className="absolute right-2 top-2 p-2 text-rose-500 hover:bg-rose-50 rounded-lg sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                      title="Hapus paket"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                ))}
-                {packages.length === 0 && (
-                  <p className="text-sm text-slate-500 text-center py-4 bg-slate-50 rounded-xl border border-slate-200 border-dashed">Belum ada paket yang ditambahkan.</p>
+              <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Logo Bisnis (Upload)</label>
+              <div className="flex items-center gap-4">
+                {logoUrl && (
+                  <img src={logoUrl} alt="Preview" className="w-12 h-12 rounded object-cover border border-slate-200 bg-white" />
                 )}
+                <input 
+                  type="file" 
+                  accept="image/png, image/jpeg, image/svg+xml"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 1024 * 1024 * 2) { // 2MB limit
+                        alert('Ukuran file maksimal 2MB');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setLogoUrl(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="flex-1 w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 transition-all cursor-pointer" 
+                />
               </div>
             </div>
           </div>
@@ -728,6 +802,8 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
           </div>
         </div>
       )}
-    </>
+      </>
+      )}
+    </div>
   );
 }

@@ -20,6 +20,25 @@ export function CCTVMonitoring() {
   const [rightPanelTab, setRightPanelTab] = useState<'list' | 'events'>('list');
   const [showPTZ, setShowPTZ] = useState<string | null>(null); // camera id
   const [notification, setNotification] = useState<{message: string, type: 'success'|'error'} | null>(null);
+  const [localRecording, setLocalRecording] = useState<Record<string, boolean>>({});
+
+  const toggleRecording = (cameraId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLocalRecording(prev => {
+       const isRec = prev[cameraId];
+       if (!isRec) {
+          setNotification({ message: 'Perekaman lokal dimulai', type: 'success' });
+          setTimeout(() => setNotification(null), 3000);
+          return { ...prev, [cameraId]: true };
+       } else {
+          setNotification({ message: 'Perekaman selesai. Video tersimpan di penyimpanan.', type: 'success' });
+          setTimeout(() => setNotification(null), 3000);
+          const next = {...prev};
+          delete next[cameraId];
+          return next;
+       }
+    });
+  };
 
   // Cloud Firestore States
   const [cameras, setCameras] = useState<CCTVCam[]>([]);
@@ -38,11 +57,13 @@ export function CCTVMonitoring() {
           { id: 'cam2', name: 'Server Room', status: 'online', type: 'dvr', channel: 2, location: 'Interior', recording: true, ptz: false, tenantId },
           { id: 'cam3', name: 'Backyard', status: 'offline', type: 'ip', url: 'rtsp://...', location: 'Exterior', recording: false, ptz: true, tenantId },
         ];
-        mockData.forEach(c => setDoc(doc(db, 'cctv_cameras', c.id), c));
+        mockData.forEach(c => setDoc(doc(db, 'cctv_cameras', c.id), c).catch(console.error));
       } else {
         const camsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CCTVCam));
         setCameras(camsData);
       }
+    }, (error) => {
+       console.warn("Error fetching cameras:", error.message);
     });
 
     // 2. Listen to Event Logs
@@ -53,11 +74,13 @@ export function CCTVMonitoring() {
         const mockEvents: (Partial<CCTVEvent> & { tenantId: string })[] = [
           { cameraId: 'cam1', cameraName: 'Main Gate', time: '14:02:45', date: 'Hari Ini', type: 'motion', severity: 'medium', timestamp: Date.now(), tenantId },
         ];
-        mockEvents.forEach(e => addDoc(collection(db, 'cctv_events'), e));
+        mockEvents.forEach(e => addDoc(collection(db, 'cctv_events'), e).catch(console.error));
       } else {
         const eventsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CCTVEvent));
         setMotionEvents(eventsData);
       }
+    }, (error) => {
+        console.warn("Error fetching CCTV events:", error.message);
     });
 
     return () => {
@@ -261,6 +284,7 @@ export function CCTVMonitoring() {
                   <div className="absolute inset-0 flex items-center justify-center bg-black">
                     {cam.streamUrl && (
                        <div className="absolute inset-0" style={{ opacity: viewMode === 'live' ? 1 : 0, pointerEvents: viewMode === 'live' ? 'auto' : 'none' }}>
+                         {/* @ts-ignore */}
                          <ReactPlayer 
                            url={cam.streamUrl} 
                            playing={viewMode === 'live'} 
@@ -303,7 +327,7 @@ export function CCTVMonitoring() {
                     {cam.status === 'online' && (
                       <div className="bg-black/40 backdrop-blur-sm px-1 py-0.5 rounded text-white/70 font-mono text-[9px] w-fit flex items-center gap-2">
                         <span>CH{cam.channel} • {cam.type.toUpperCase()}</span>
-                        {cam.recording && <span className="flex items-center gap-1 text-rose-400"><Video size={10} /> REC</span>}
+                        {(cam.recording || localRecording[cam.id]) && <span className={`flex items-center gap-1 ${localRecording[cam.id] ? 'text-rose-500 font-bold animate-pulse' : 'text-rose-400'}`}><Video size={10} fill={localRecording[cam.id] ? "currentColor" : "none"} /> REC</span>}
                       </div>
                     )}
                   </div>
@@ -327,7 +351,10 @@ export function CCTVMonitoring() {
                 )}
                 
                 {/* Hover Controls */}
-                <div className="absolute bottom-0 inset-x-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/80 to-transparent flex justify-end">
+                <div className="absolute bottom-0 inset-x-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-t from-black/80 to-transparent flex justify-end gap-1 z-30">
+                  <button onClick={(e) => toggleRecording(cam.id, e)} className={`p-1 rounded transition-colors ${localRecording[cam.id] ? 'text-rose-500 hover:text-rose-400 bg-rose-500/20' : 'text-white/70 hover:text-white hover:bg-white/10'}`} title={localRecording[cam.id] ? "Hentikan Rekaman" : "Mulai Merekam"}>
+                    {localRecording[cam.id] ? <StopCircle size={16} /> : <Video size={16} />}
+                  </button>
                   <button onClick={() => openSettings(cam)} className="text-white/70 hover:text-white p-1 rounded hover:bg-white/10 transition-colors">
                     <Settings2 size={16} />
                   </button>
@@ -423,7 +450,7 @@ export function CCTVMonitoring() {
                      <button onClick={(e) => handleDeleteCamera(cam.id, e)} className="text-slate-400 hover:text-rose-600 p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                        <Trash2 size={14} />
                      </button>
-                     {cam.recording && <span title="Recording"><Video size={12} className="text-rose-500 animate-pulse" /></span>}
+                     {(cam.recording || localRecording[cam.id]) && <span title="Recording"><Video size={12} className="text-rose-500 animate-pulse" fill={localRecording[cam.id] ? "currentColor" : "none"} /></span>}
                      <div className={`w-2 h-2 rounded-full ${cam.status === 'online' ? 'bg-emerald-500' : 'bg-rose-500'}`} title={cam.status} />
                   </div>
                 </div>

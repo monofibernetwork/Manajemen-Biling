@@ -38,7 +38,7 @@ export function OdpMonitoring({ odps, onRefresh, onUpdateOdp }: { odps: Odp[], o
       newNotifications.forEach(notif => {
         setTimeout(() => {
           setNotifications(prev => prev.filter(n => n.id !== notif.id));
-        }, 120000);
+        }, 5000);
       });
     }
 
@@ -407,9 +407,9 @@ export function OdpMonitoring({ odps, onRefresh, onUpdateOdp }: { odps: Odp[], o
       })()}
       
       {notifications.length > 0 && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-3 max-w-lg w-full px-4">
+        <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 max-w-sm w-full px-4">
           {notifications.map(notif => (
-            <div key={notif.id} className={`bg-white border text-slate-800 shadow-xl rounded-xl p-4 animate-in slide-in-from-top-4 fade-in duration-300 ${notif.status === 'Loss' ? 'border-rose-300 shadow-rose-500/10' : 'border-amber-300 shadow-amber-500/10'}`}>
+            <div key={notif.id} className={`bg-white border text-slate-800 shadow-xl rounded-xl p-4 animate-in slide-in-from-bottom-4 fade-in duration-300 ${notif.status === 'Loss' ? 'border-rose-300 shadow-rose-500/10' : 'border-amber-300 shadow-amber-500/10'}`}>
               <div className="flex justify-between items-start gap-4">
                 <div className="flex items-start gap-3">
                   <div className={`p-2 rounded-lg shrink-0 ${notif.status === 'Loss' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'}`}>

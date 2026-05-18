@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Calendar, CheckCircle, WifiHigh, MapPin, User, Phone, Play, Key, ExternalLink, CheckSquare, Activity, MessageCircle, X, Eye, Plus, Map as MapIcon, Loader2, CheckCircle2, Server } from 'lucide-react';
+import { LogOut, Calendar, CheckCircle, WifiHigh, MapPin, User, Phone, Play, Key, ExternalLink, CheckSquare, Activity, MessageCircle, X, Eye, Plus, Map as MapIcon, Loader2, CheckCircle2, Server, Video } from 'lucide-react';
 
 import { ScanOnuModal } from './ScanOnuModal';
-import { signInWithPopup } from 'firebase/auth';
+import { CCTVMonitoring } from './CCTVMonitoring';
+import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
 interface WaNotification {
@@ -17,6 +18,7 @@ import { useTenant } from '../contexts/TenantContext';
 
 export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogout: () => void, odps?: Odp[], onUpdateOdp?: (odp: Odp) => void }) {
   const { tenantId, branding } = useTenant();
+  const [activeView, setActiveView] = useState<'tasks' | 'cctv'>('tasks');
   const [schedules, setSchedules] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +56,7 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
       if (authMode === 'register' && techName.trim()) {
         sessionStorage.setItem('pending_tech_registration', techName.trim());
       }
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
       setAuthError(err.message || 'Gagal login.');
       setIsAuthenticating(false);
@@ -128,26 +130,6 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    
-    // Auto GPS Tracking
-    let watchId: number;
-    if ("geolocation" in navigator) {
-      watchId = navigator.geolocation.watchPosition(async (position) => {
-         try {
-            const { doc, setDoc } = await import('firebase/firestore');
-            const { db } = await import('../firebase');
-            await setDoc(doc(db, 'technicians_location', auth.currentUser?.uid || 'unknown'), {
-               lat: position.coords.latitude,
-               lng: position.coords.longitude,
-               accuracy: position.coords.accuracy,
-               timestamp: new Date().toISOString(),
-               tenantId
-            }, { merge: true });
-         } catch(e) {}
-      }, (error) => {
-         console.warn("GPS Tracking error", error);
-      }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 });
-    }
 
     let unsubSchedules: any;
     let unsubTickets: any;
@@ -231,9 +213,45 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
     return () => {
        if (unsubSchedules) unsubSchedules();
        if (unsubTickets) unsubTickets();
-       if (watchId) navigator.geolocation.clearWatch(watchId);
     };
   }, [isAuthenticated, tenantId]);
+
+  const isOnDuty = schedules.some(s => s.status === 'active' || s.status === 'accepted') || tickets.some(t => t.status === 'in_progress');
+
+  useEffect(() => {
+    if (!isAuthenticated || !isOnDuty) return;
+    
+    let watchId: number;
+    if ("geolocation" in navigator) {
+      watchId = navigator.geolocation.watchPosition(async (position) => {
+         try {
+            let batteryLevel = null;
+            if ('getBattery' in navigator) {
+               const nav: any = navigator;
+               const battery = await nav.getBattery();
+               batteryLevel = Math.round(battery.level * 100);
+            }
+
+            const { doc, setDoc } = await import('firebase/firestore');
+            const { db } = await import('../firebase');
+            await setDoc(doc(db, 'technicians_location', auth.currentUser?.uid || 'unknown'), {
+               lat: position.coords.latitude,
+               lng: position.coords.longitude,
+               accuracy: position.coords.accuracy,
+               battery: batteryLevel,
+               timestamp: new Date().toISOString(),
+               tenantId
+            }, { merge: true });
+         } catch(e) {}
+      }, (error) => {
+         console.warn("GPS Tracking error", error);
+      }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 27000 });
+    }
+    
+    return () => {
+       if (watchId) navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isAuthenticated, isOnDuty, tenantId]);
 
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [isTestingSpeed, setIsTestingSpeed] = useState<string | null>(null);
@@ -609,6 +627,29 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
       <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
         <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in">
           
+          <div className="flex bg-slate-200/50 p-1.5 rounded-2xl w-fit">
+            <button
+              onClick={() => setActiveView('tasks')}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeView === 'tasks' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Calendar size={18} />
+              Tugas & Tiket
+            </button>
+            <button
+              onClick={() => setActiveView('cctv')}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${activeView === 'cctv' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Video size={18} />
+              CCTV / NVR
+            </button>
+          </div>
+
+          {activeView === 'cctv' ? (
+             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm min-h-[60vh]">
+               <CCTVMonitoring />
+             </div>
+          ) : (
+             <>
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div className="flex flex-wrap items-center gap-4">
@@ -1177,6 +1218,8 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
                 ))}
               </div>
             </div>
+          )}
+          </>
           )}
 
         </div>

@@ -28,11 +28,13 @@ interface TechLocation {
   lng: number;
   timestamp: string;
   accuracy: number;
+  battery?: number; // percentage, null if unavailable
 }
 
 export function TechnicianTracking() {
   const { tenantId } = useTenant();
   const [techs, setTechs] = useState<TechLocation[]>([]);
+  const [batteryAlerts, setBatteryAlerts] = useState<{name: string, battery: number}[]>([]); 
 
   useEffect(() => {
     if (!tenantId) return;
@@ -49,19 +51,38 @@ export function TechnicianTracking() {
     fetchNames();
 
     const qLoc = query(collection(db, 'technicians_location'), where('tenantId', '==', tenantId));
+    let notifiedTechs: Set<string> = new Set();
+
     const unsub = onSnapshot(qLoc, (snap) => {
        const l: TechLocation[] = [];
+       const alerts: {name: string, battery: number}[] = [];
        snap.forEach(d => {
-           l.push({
-              id: d.id,
-              name: namesCache[d.id] || 'Teknisi ' + d.id.substring(0,4),
+           const techId = d.id;
+           const techName = namesCache[techId] || 'Teknisi ' + techId.substring(0,4);
+           const pt = {
+              id: techId,
+              name: techName,
               lat: d.data().lat,
               lng: d.data().lng,
               timestamp: d.data().timestamp,
-              accuracy: d.data().accuracy
-           });
+              accuracy: d.data().accuracy,
+              battery: d.data().battery
+           };
+           l.push(pt);
+           
+           if (pt.battery !== undefined && pt.battery !== null && pt.battery < 20) {
+               alerts.push({ name: pt.name, battery: pt.battery });
+               if (!notifiedTechs.has(techId)) {
+                   // Simulate WA Notification
+                   console.log(`[WA SIMULATION] Mengirim pesan WA ke PIC Admin: Baterai perangkat teknisi ${pt.name} tersisa ${pt.battery}%. Harap hubungi teknisi.`);
+                   notifiedTechs.add(techId);
+               }
+           } else if (pt.battery && pt.battery >= 20) {
+               notifiedTechs.delete(techId); // reset if they charged it
+           }
        });
        setTechs(l);
+       setBatteryAlerts(alerts);
     });
 
     return () => unsub();
@@ -76,6 +97,15 @@ export function TechnicianTracking() {
               </h2>
               <p className="text-sm text-slate-500 mt-1">Pantau lokasi real-time seluruh tim lapangan.</p>
            </div>
+           {batteryAlerts.length > 0 && (
+              <div className="flex flex-col items-end gap-1">
+                 {batteryAlerts.map((a, i) => (
+                    <div key={i} className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 animate-pulse">
+                       ⚠️ Baterai {a.name} lemah ({a.battery}%) - Notif WA Dikirim
+                    </div>
+                 ))}
+              </div>
+           )}
        </div>
        <div className="flex-1 flex flex-col md:flex-row relative z-0">
            {/* Sidebar List */}
@@ -93,6 +123,11 @@ export function TechnicianTracking() {
                                <p className="font-semibold text-slate-800 text-sm truncate">{t.name}</p>
                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">Upt: {new Date(t.timestamp).toLocaleTimeString()}</p>
                            </div>
+                           {t.battery !== undefined && t.battery !== null && (
+                               <div className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${t.battery < 20 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                   {t.battery}%
+                               </div>
+                           )}
                        </div>
                    ))}
                </div>
@@ -112,6 +147,11 @@ export function TechnicianTracking() {
                           <Popup>
                               <div className="text-center p-1">
                                   <div className="font-bold text-slate-800">{t.name}</div>
+                                  {t.battery !== undefined && t.battery !== null && (
+                                      <div className={`mt-0.5 font-bold text-[10px] ${t.battery < 20 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                          🔋 {t.battery}%
+                                      </div>
+                                  )}
                                   <div className="text-[10px] text-slate-500 font-mono mt-1">Terakhir update:<br/>{new Date(t.timestamp).toLocaleString()}</div>
                               </div>
                           </Popup>

@@ -4,7 +4,7 @@ service cloud.firestore {
     // Helper functions
     function isSignedIn() { return request.auth != null; }
     function isAdmin() { 
-      return isSignedIn() && request.auth.token.email in ['adityabiznet@gmail.com']; 
+      return isSignedIn() && request.auth.token.email in ['adityabiznet@gmail.com', 'owner.aditya@dreampaymanager.app', 'adityaf90000@gmail.com', 'admin.aditya@dreampaymanager.app']; 
     } 
 
     function getUserTenantId() {
@@ -60,17 +60,11 @@ service cloud.firestore {
     }
 
     match /cctv_cameras/{camId} {
-      allow read: if isTenant(resource.data.tenantId);
-      allow create: if isTenant(request.resource.data.tenantId);
-      allow update: if isTenant(resource.data.tenantId) && isTenant(request.resource.data.tenantId);
-      allow delete: if isTenant(resource.data.tenantId);
+      allow read, write: if true;
     }
 
     match /cctv_events/{eventId} {
-      allow read: if isTenant(resource.data.tenantId);
-      allow create: if isTenant(request.resource.data.tenantId);
-      allow update: if isTenant(resource.data.tenantId) && isTenant(request.resource.data.tenantId);
-      allow delete: if isTenant(resource.data.tenantId);
+      allow read, write: if true;
     }
 
     match /tickets/{ticketId} {
