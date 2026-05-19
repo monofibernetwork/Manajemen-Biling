@@ -33,6 +33,15 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
   
+  const [useOltApi, setUseOltApi] = useState(() => localStorage.getItem('useOltApi') === 'true');
+  const [oltIp, setOltIp] = useState(() => localStorage.getItem('oltIp') || '');
+  const [oltPort, setOltPort] = useState(() => localStorage.getItem('oltPort') || '');
+  const [oltUsername, setOltUsername] = useState(() => localStorage.getItem('oltUsername') || '');
+  const [oltPassword, setOltPassword] = useState(() => localStorage.getItem('oltPassword') || '');
+  const [oltModel, setOltModel] = useState(() => localStorage.getItem('oltModel') || 'cdata-gpon');
+  const [oltPonPort, setOltPonPort] = useState(() => localStorage.getItem('oltPonPort') || 'PON 1');
+  const [oltSnBase, setOltSnBase] = useState(() => localStorage.getItem('oltSnBase') || 'CDATA123456');
+
   const [snmpIp, setSnmpIp] = useState('');
   const [snmpCommunity, setSnmpCommunity] = useState('public');
   const [snmpDevices, setSnmpDevices] = useState<{ip: string, community: string}[]>(() => {
@@ -48,6 +57,54 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [showSettingsConfirm, setShowSettingsConfirm] = useState(false);
   const [showScriptModal, setShowScriptModal] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+
+  const handleClearAllData = async () => {
+    if (!window.confirm('PERINGATAN KRITIS!\n\nApakah Anda YAKIN ingin menghapus SELURUH DATA pelanggan, tagihan, jadwal, tiket, dan transaksi kas? Tindakan ini TIDAK BISA DIBATALKAN.')) {
+      return;
+    }
+    const secondConfirm = window.prompt('Ketik "HAPUS SEMUA" untuk melanjutkan penghapusan data:');
+    if (secondConfirm !== 'HAPUS SEMUA') {
+      alert('Penghapusan dibatalkan karena konfirmasi teks salah.');
+      return;
+    }
+
+    setIsClearingData(true);
+    try {
+      const { collection, getDocs, doc, deleteDoc } = await import('firebase/firestore');
+      const { db } = await import('../firebase');
+      
+      const collectionsToClear = [
+        'customers',
+        'schedules',
+        'tickets',
+        'transactions',
+        'finance_transactions',
+        'cctv_cameras',
+        'inventory_items',
+        'inventory_transactions',
+        'odps'
+      ];
+
+      for (const colName of collectionsToClear) {
+        try {
+          const snapshot = await getDocs(collection(db, colName));
+          const deletePromises = snapshot.docs.map(document => deleteDoc(doc(db, colName, document.id)));
+          await Promise.all(deletePromises);
+        } catch (e) {
+          console.error(`Failed to clear collection ${colName}:`, e);
+        }
+      }
+
+      alert('Berhasil! Semua data operasional telah dikosongkan.');
+      window.location.reload();
+    } catch (e: any) {
+      console.error('Error clearing data:', e);
+      alert('Terjadi kesalahan saat menghapus data: ' + e.message);
+    } finally {
+      setIsClearingData(false);
+    }
+  };
 
   const handleAddSnmpDevice = () => {
     if (!snmpIp.trim() || !snmpCommunity.trim()) {
@@ -149,6 +206,14 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
       localStorage.setItem('useVpnTunnel', useVpnTunnel.toString());
       localStorage.setItem('vpnHost', vpnHost);
       localStorage.setItem('vpnPort', vpnPort);
+      localStorage.setItem('useOltApi', useOltApi.toString());
+      localStorage.setItem('oltIp', oltIp);
+      localStorage.setItem('oltPort', oltPort);
+      localStorage.setItem('oltUsername', oltUsername);
+      localStorage.setItem('oltPassword', oltPassword);
+      localStorage.setItem('oltModel', oltModel);
+      localStorage.setItem('oltPonPort', oltPonPort);
+      localStorage.setItem('oltSnBase', oltSnBase);
       setSettingsSuccess("Konfigurasi berhasil disimpan dan diterapkan.");
       setTimeout(() => setSettingsSuccess(null), 3000);
     }, 500);
@@ -531,6 +596,107 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
           </div>
           
           <div className="pt-6 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Konfigurasi OLT</h3>
+              <label className="flex items-center cursor-pointer">
+                <div className="relative">
+                  <input type="checkbox" className="sr-only" checked={useOltApi} onChange={(e) => setUseOltApi(e.target.checked)} />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${useOltApi ? 'bg-primary-500' : 'bg-slate-300'}`}></div>
+                  <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${useOltApi ? 'transform translate-x-4' : ''}`}></div>
+                </div>
+                <div className="ml-3 text-xs font-medium text-slate-600">Aktifkan API OLT</div>
+              </label>
+            </div>
+            
+            {useOltApi && (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 flex gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg text-amber-600 shrink-0 mt-0.5">
+                    <Shield size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-900 mb-1">Peringatan Keamanan</h4>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      Pastikan API OLT hanya dapat diakses dari IP server aplikasi ini. Gunakan firewall atau VPN untuk membatasi akses.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">IP Address OLT</label>
+                    <input 
+                      type="text" 
+                      value={oltIp}
+                      onChange={(e) => setOltIp(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Port OLT</label>
+                    <input 
+                      type="text" 
+                      value={oltPort}
+                      onChange={(e) => setOltPort(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Username OLT</label>
+                    <input 
+                      type="text" 
+                      value={oltUsername}
+                      onChange={(e) => setOltUsername(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Password OLT</label>
+                    <input 
+                      type="password" 
+                      value={oltPassword}
+                      onChange={(e) => setOltPassword(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" 
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-100 pt-4">
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Model OLT</label>
+                    <select 
+                      value={oltModel} 
+                      onChange={(e) => setOltModel(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono"
+                    >
+                      <option value="cdata-gpon">C-Data GPON</option>
+                      <option value="zte-c320">ZTE C320</option>
+                      <option value="huawei-ma5800">Huawei MA5800</option>
+                      <option value="vsol-epon">VSOL EPON</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">PON Port Default</label>
+                    <input 
+                      type="text" 
+                      value={oltPonPort} 
+                      onChange={(e) => setOltPonPort(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Serial Number Base</label>
+                    <input 
+                      type="text" 
+                      value={oltSnBase} 
+                      onChange={(e) => setOltSnBase(e.target.value)} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" 
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="pt-6 border-t border-slate-200">
             <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-4">Payment Gateway & QRIS</h3>
             
             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 flex gap-3">
@@ -639,29 +805,6 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
           </div>
 
           <div className="pt-6 border-t border-slate-200">
-            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-4">Konfigurasi OLT</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Model OLT</label>
-                <select className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono">
-                  <option value="cdata-gpon">C-Data GPON</option>
-                  <option value="zte-c320">ZTE C320</option>
-                  <option value="huawei-ma5800">Huawei MA5800</option>
-                  <option value="vsol-epon">VSOL EPON</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">PON Port Default</label>
-                <input type="text" defaultValue="PON 1" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-1.5">Serial Number Base</label>
-                <input type="text" defaultValue="CDATA123456" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 focus:ring-1 focus:ring-primary-600 focus:border-primary-600 focus:outline-none transition-all font-mono" />
-              </div>
-            </div>
-          </div>
-          
-          <div className="pt-6 border-t border-slate-200">
             <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider mb-4">Konfigurasi SNMP</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end mb-4">
               <div>
@@ -732,6 +875,28 @@ export function Settings({ isWaBillingEnabled = true, setIsWaBillingEnabled }: S
               Simpan Pengaturan
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-rose-50 border border-rose-200 rounded-3xl overflow-hidden shadow-sm mt-4 mb-6">
+        <div className="p-6 border-b border-rose-200 bg-white/50">
+          <h2 className="text-sm font-semibold text-rose-600 tracking-wider uppercase flex items-center gap-2">
+             <AlertCircle size={16} /> Danger Zone
+          </h2>
+          <p className="text-[10px] text-slate-500 font-mono mt-1">Kosongkan semua tabel database (Factory Reset)</p>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-slate-700 mb-4">
+             Fitur ini akan menghapus <strong>seluruh data operasional</strong> (Pelanggan, Jadwal, Tagihan, Kas, Inventory, ODP, dll). Gunakan jika Anda ingin memulai input data dari awal yang bersih.
+          </p>
+          <button 
+             onClick={handleClearAllData}
+             disabled={isClearingData}
+             className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-colors flex items-center gap-2"
+          >
+             {isClearingData ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <Trash2 size={16} />}
+             Bersihkan Semua Data Sekarang
+          </button>
         </div>
       </div>
 

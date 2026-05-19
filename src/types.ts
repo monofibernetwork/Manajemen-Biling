@@ -18,6 +18,9 @@ export interface Customer {
   billingAmount: number;
   lastPaymentDate?: string;
   isIsolated?: boolean;
+  referralCode?: string;
+  referredBy?: string;
+  referralCount?: number;
   connectionHistory?: {
     startTime: string;
     endTime: string;

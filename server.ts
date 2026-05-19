@@ -5,16 +5,58 @@ import path from "path";
 import Midtrans from "midtrans-client";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
 const JWT_SECRET = process.env.JWT_SECRET || "default_fallback_secret_key_12345";
+
+let aiClient: GoogleGenAI | null = null;
+
+function getAi(): GoogleGenAI {
+  if (!aiClient) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
+    aiClient = new GoogleGenAI({ 
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return aiClient;
+}
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { message, history } = req.body;
+      const ai = getAi();
+      
+      const contents = history && history.length > 0 ? [...history, message] : message;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-preview",
+        contents: contents,
+        config: {
+          systemInstruction: "Anda adalah asisten AI dari Dream Paymanager yang ramah dan membantu. Balas dalam bahasa Indonesia yang ringkas dan profesional."
+        }
+      });
+      res.json({ text: response.text });
+    } catch (e: any) {
+      console.error('Gemini API Error:', e);
+      res.status(500).json({ error: e.message || 'Gemini API Error' });
+    }
+  });
 
   // API routes FIRST
   app.get("/api/health", (req, res) => {

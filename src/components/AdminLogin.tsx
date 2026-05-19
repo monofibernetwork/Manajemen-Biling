@@ -15,7 +15,6 @@ export function AdminLogin({ onLogin, onCustomerPortal, onTechnicianPortal }: Ad
   const [error, setError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [loginMethod, setLoginMethod] = useState<'google' | 'email'>('google');
-  const [isRegistering, setIsRegistering] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -51,24 +50,7 @@ export function AdminLogin({ onLogin, onCustomerPortal, onTechnicianPortal }: Ad
     const authEmail = `${username.toLowerCase().replace(/\s+/g, '')}@dreampaymanager.app`;
 
     try {
-      if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, authEmail, password);
-      } else {
-        try {
-          await signInWithEmailAndPassword(auth, authEmail, password);
-        } catch (signInErr: any) {
-          // Auto-register if user doesn't exist
-          if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
-            try {
-               await createUserWithEmailAndPassword(auth, authEmail, password);
-            } catch (regErr: any) {
-               throw regErr;
-            }
-          } else {
-            throw signInErr;
-          }
-        }
-      }
+      await signInWithEmailAndPassword(auth, authEmail, password);
       onLogin();
       // Jangan set isAuthenticating(false) disini jika berhasil, karena 
       // komponen akan unmount. Namun jika ada error dari App.tsx, form ini akan
@@ -77,7 +59,13 @@ export function AdminLogin({ onLogin, onCustomerPortal, onTechnicianPortal }: Ad
         setIsAuthenticating(false);
       }, 5000);
     } catch (err: any) {
-      setError(err.message || `Gagal ${isRegistering ? 'mendaftar' : 'login'} dengan username. Pastikan kredensial benar.`);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        setError('Username atau password salah / tidak terdaftar.');
+      } else if (err.code === 'auth/too-many-requests') {
+        setError('Terlalu banyak percobaan. Coba lagi nanti.');
+      } else {
+        setError(err.message || 'Gagal login. Pastikan kredensial benar.');
+      }
       setIsAuthenticating(false);
     }
   };
@@ -140,7 +128,7 @@ export function AdminLogin({ onLogin, onCustomerPortal, onTechnicianPortal }: Ad
               className={`w-full py-3 mt-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
                 isAuthenticating 
                   ? 'bg-white text-slate-500 cursor-not-allowed border border-slate-300' 
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg lg:hover:shadow-emerald-500/25 border border-emerald-500/50'
+                  : 'bg-primary-600 hover:bg-primary-700 text-white shadow-lg hover:shadow-primary-600/25 border border-transparent'
               }`}
             >
               {isAuthenticating ? (
@@ -172,30 +160,19 @@ export function AdminLogin({ onLogin, onCustomerPortal, onTechnicianPortal }: Ad
                 />
               </div>
               
-              <div className="flex items-center justify-between text-xs px-1">
-                <span className="text-slate-500">{isRegistering ? 'Sudah punya akun?' : 'Belum punya akun?'}</span>
-                <button 
-                  type="button" 
-                  onClick={() => setIsRegistering(!isRegistering)}
-                  className="text-emerald-600 font-bold hover:underline"
-                >
-                  {isRegistering ? 'Login disini' : 'Daftar sekarang'}
-                </button>
-              </div>
-
               <button
                 type="submit"
                 disabled={isAuthenticating}
-                className={`w-full py-3 mt-2 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                className={`w-full py-3 mt-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
                   isAuthenticating 
                     ? 'bg-white text-slate-500 cursor-not-allowed border border-slate-300' 
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg lg:hover:shadow-emerald-500/25 border border-emerald-500/50'
+                    : 'bg-primary-600 hover:bg-primary-700 text-white shadow-lg hover:shadow-primary-600/25 border border-transparent'
                 }`}
               >
                 {isAuthenticating ? (
                   <><div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div> Memverifikasi...</>
                 ) : (
-                  isRegistering ? <><UserPlus size={18} /> Buat Akun Baru</> : <><User size={18} /> Login dengan Username</>
+                  <><User size={18} /> Login dengan Username</>
                 )}
               </button>
             </form>
@@ -223,7 +200,7 @@ export function AdminLogin({ onLogin, onCustomerPortal, onTechnicianPortal }: Ad
       </div>
       
       <p className="mt-8 text-xs text-slate-400 font-mono tracking-wider">
-        &copy; {new Date().getFullYear()} Fiberling Indonesia v2.10 Dashboard
+        &copy; {new Date().getFullYear()} Fiberling Indonesia v2.20.2 Dashboard
       </p>
     </div>
   );

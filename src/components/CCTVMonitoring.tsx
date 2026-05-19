@@ -285,14 +285,14 @@ export function CCTVMonitoring() {
                     {cam.streamUrl && (
                        <div className="absolute inset-0" style={{ opacity: viewMode === 'live' ? 1 : 0, pointerEvents: viewMode === 'live' ? 'auto' : 'none' }}>
                          {/* @ts-ignore */}
-                         <ReactPlayer 
-                           url={cam.streamUrl} 
-                           playing={viewMode === 'live'} 
-                           muted 
-                           width="100%" 
-                           height="100%" 
-                           style={{ objectFit: 'cover' }}
-                         />
+                         <ReactPlayer {...({
+                           url: cam.streamUrl,
+                           playing: viewMode === 'live',
+                           muted: true,
+                           width: "100%",
+                           height: "100%",
+                           style: { objectFit: 'cover' }
+                         } as any)} />
                        </div>
                     )}
                     {(!cam.streamUrl || viewMode !== 'live') && (

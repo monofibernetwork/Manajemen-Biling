@@ -1,6 +1,36 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Global dark mode overrides to trick Tailwind */
+@layer base {
+  .dark {
+    color-scheme: dark;
+    --color-white: #0f172a; /* slate-900 */
+    --color-slate-50: #1e293b; /* slate-800 */
+    --color-slate-100: #334155; /* slate-700 */
+    --color-slate-200: #475569; /* slate-600 */
+    --color-slate-300: #64748b; /* slate-500 */
+    --color-slate-400: #94a3b8; /* slate-400 */
+    --color-slate-500: #cbd5e1; /* slate-300 */
+    --color-slate-600: #e2e8f0; /* slate-200 */
+    --color-slate-700: #f1f5f9; /* slate-100 */
+    --color-slate-800: #f8fafc; /* slate-50 */
+    --color-slate-900: #ffffff;
+    --color-slate-950: #ffffff;
+    
+    /* Reverse primary colors inside dark mode for legibility if needed */
+    --color-emerald-50: #042f2e; /* emerald-950 */
+    --color-emerald-100: #134e4a; /* emerald-900 */
+    --color-emerald-700: #34d399; /* emerald-400 */
+    
+    --color-rose-50: #4c0519; /* rose-950 */
+    --color-rose-100: #881337; /* rose-900 */
+    --color-rose-700: #fb7185; /* rose-400 */
+  }
+}
+
 @theme {
   --color-primary-50: var(--custom-primary-50, var(--color-blue-50));
   --color-primary-100: var(--custom-primary-100, var(--color-blue-100));

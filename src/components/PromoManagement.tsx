@@ -24,6 +24,14 @@ export function PromoManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [simulatePrice, setSimulatePrice] = useState(200000);
 
+  const totalSavings = promos.reduce((sum, promo) => {
+    let baseSimPrice = 200000;
+    if (promo.targetPackages === 'basic') baseSimPrice = 150000;
+    else if (promo.targetPackages === 'pro') baseSimPrice = 200000;
+    else if (promo.targetPackages === 'gamer') baseSimPrice = 350000;
+    return sum + ((promo.getFreeMonths || 0) * baseSimPrice);
+  }, 0);
+
   useEffect(() => {
     if (!tenantId) return;
     
@@ -108,6 +116,10 @@ export function PromoManagement() {
             <Gift className="text-rose-500" /> Manajemen Promo & Diskon
           </h1>
           <p className="text-slate-500 text-sm mt-1">Buat paket promo berlangganan khusus pelanggan Anda.</p>
+          <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-100 text-sm font-semibold">
+            <span>Total Potensi Hemat Pelanggan:</span>
+            <span>Rp {totalSavings.toLocaleString('id-ID')}</span>
+          </div>
         </div>
         <button 
           onClick={() => { resetForm(); setEditingPromo(null); setIsModalOpen(true); }}

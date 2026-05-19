@@ -3,6 +3,8 @@ import { CalendarDays, UserPlus, Phone, MapPin, Wifi, Clock, CheckCircle2, Send,
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const pinIcon = L.divIcon({
   className: 'custom-leaflet-marker',
@@ -31,17 +33,17 @@ function MapUpdater({ center }: { center: [number, number] }) {
   return null;
 }
 
-const TECHNICIANS = [
+const DEFAULT_TECHNICIANS = [
   { id: 'teknisi1', name: 'Tim Teknisi 1 (Utara)', workload: 3, status: 'Sibuk' },
   { id: 'teknisi2', name: 'Tim Teknisi 2 (Selatan)', workload: 1, status: 'Tersedia' },
-  { id: 'teknisi3', name: 'Tim Teknisi 3 (Timur)', workload: 0, status: 'Standby' },
-  { id: 'teknisi4', name: 'Tim Teknisi 4 (Barat)', workload: 5, status: 'Penuh' },
+  { id: 'teknisi3', name: 'Tim Teknisi 3 (Timur)', workload: 0, status: 'Standby' }
 ];
 
 import { useTenant } from '../contexts/TenantContext';
 
 export function NewInstallation() {
   const { tenantId } = useTenant();
+  const [dbTechnicians, setDbTechnicians] = useState<any[]>(DEFAULT_TECHNICIANS);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -56,7 +58,33 @@ export function NewInstallation() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isCalculatingTech, setIsCalculatingTech] = useState(false);
-  const [currentTechs, setCurrentTechs] = useState(TECHNICIANS);
+  const [currentTechs, setCurrentTechs] = useState(DEFAULT_TECHNICIANS);
+
+  useEffect(() => {
+    const fetchTechs = async () => {
+      try {
+        const q = query(collection(db, 'system_users'), where('role', '==', 'technical'), where('tenantId', '==', tenantId));
+        const snapshot = await getDocs(q);
+        const techs: any[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          techs.push({
+            id: doc.id,
+            name: data.displayName || data.username || doc.id,
+            workload: Math.floor(Math.random() * 4), // start with random initial workload
+            status: 'Standby'
+          });
+        });
+        if (techs.length > 0) {
+          setDbTechnicians(techs);
+          setCurrentTechs(techs);
+        }
+      } catch (err) {
+        console.error("Error fetching technicians:", err);
+      }
+    };
+    if (tenantId) fetchTechs();
+  }, [tenantId]);
 
   useEffect(() => {
     // When date or time changes, autoselect technician
@@ -68,7 +96,7 @@ export function NewInstallation() {
         // Create a pseudo-random hash based on date and time to simulate different workloads
         const hash = (formData.date + formData.time).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         
-        const dynamicTechs = TECHNICIANS.map(t => {
+        const dynamicTechs = dbTechnicians.map(t => {
           const simulatedWorkload = (t.workload + hash) % 6;
           return {
             ...t,
@@ -106,14 +134,15 @@ export function NewInstallation() {
     } else {
       setFormData(prev => ({...prev, technician: ''}));
     }
-  }, [formData.date, formData.time]);
+  }, [formData.date, formData.time, dbTechnicians]);
 
-  const getTechName = (id: string) => TECHNICIANS.find(t => t.id === id)?.name || id;
+  const getTechName = (id: string) => dbTechnicians.find(t => t.id === id)?.name || id;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.technician) {
-       setNotification({ message: 'Harap lengkapi tanggal dan waktu untuk menentukan teknisi.', type: 'error' });
+    if (!formData.name.trim() || !formData.phone.trim() || !formData.address.trim() || !formData.date || !formData.time || !formData.technician) {
+       setNotification({ message: 'Harap lengkapi formulir pendaftaran. Pastikan nama, nomor telepon, alamat, tanggal, waktu, dan teknisi telah diisi.', type: 'error' });
+       setTimeout(() => setNotification(null), 5000);
        return;
     }
 

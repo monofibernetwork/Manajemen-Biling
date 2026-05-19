@@ -9,4 +9,7 @@ export const db = initializeFirestore(app, {}, firebaseConfig.firestoreDatabaseI
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+export const secondaryAuth = getAuth(secondaryApp);
+
 

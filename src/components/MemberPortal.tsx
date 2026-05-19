@@ -607,12 +607,24 @@ export function MemberPortal() {
                   </div>
                   <div>
                      <h2 className="text-xl md:text-2xl font-extrabold tracking-tight">Program Referral</h2>
-                     <p className="text-indigo-200 text-sm">Ajak tetangga, dapatkan diskon tagihan!</p>
+                     <p className="text-indigo-200 text-sm">Undang 3 tetangga, nikmati Gratis Internet 1 Bulan!</p>
                   </div>
                </div>
-               <p className="text-indigo-100 font-medium opacity-90 text-sm md:text-base mb-6 max-w-2xl">
-                 Setiap kali ada tetangga atau kerabat yang berlangganan dan aktif menggunakan link Anda, Anda berdua akan mendapatkan <strong className="text-white bg-indigo-500/50 px-2 py-0.5 rounded">Potongan Rp 50.000</strong> untuk tagihan bulan depan.
-               </p>
+               <div className="flex flex-col md:flex-row gap-6 items-center flex-wrap mb-6">
+                 <p className="text-indigo-100 font-medium opacity-90 text-sm md:text-base max-w-2xl flex-1">
+                   Bagikan link referral Anda ke tetangga. Jika <strong>3 pelanggan baru</strong> mendaftar dan aktif melalui link tersebut, Anda otomatis mendapatkan <strong className="text-white bg-indigo-500/50 px-2 py-0.5 rounded">GRATIS Tagihan 1 Bulan</strong>!
+                 </p>
+                 <div className="bg-white/10 px-4 py-3 rounded-2xl border border-white/20 min-w-[200px] text-center shrink-0">
+                   <div className="text-sm text-indigo-200 font-medium mb-1">Misi Referral Anda</div>
+                   <div className="flex justify-center items-center gap-2">
+                     <span className="text-3xl font-black">{customer.referralCount || 0}</span>
+                     <span className="text-lg text-indigo-300 font-bold">/ 3</span>
+                   </div>
+                   <div className="w-full bg-indigo-900/50 h-2 rounded-full mt-2 overflow-hidden">
+                     <div className="bg-emerald-400 h-full rounded-full transition-all" style={{width: `${Math.min(((customer.referralCount || 0) / 3) * 100, 100)}%`}}></div>
+                   </div>
+                 </div>
+               </div>
                
                <div className="bg-white/10 backdrop-blur-sm p-4 text-center md:text-left rounded-2xl border border-white/20 flex flex-col sm:flex-row items-center gap-3 md:w-max">
                   <div className="flex items-center gap-2 px-4 py-2 bg-indigo-900/50 rounded-xl font-mono text-sm md:text-base break-all w-full md:w-auto">

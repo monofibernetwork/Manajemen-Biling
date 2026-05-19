@@ -32,6 +32,7 @@ export function CustomerDetails({ customer, onBack, onUpdateCustomer }: Customer
   const [newSsid, setNewSsid] = useState(`WIFI_${customer.name.replace(/\s+/g, '_')}`);
   const [newWifiPassword, setNewWifiPassword] = useState('rahasia123');
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const [expandedSessions, setExpandedSessions] = useState<Record<string, boolean>>({});
 
   const groupedHistory = useMemo(() => {
     type ConnectionHistoryItem = NonNullable<typeof customer.connectionHistory>[number];
@@ -49,6 +50,10 @@ export function CustomerDetails({ customer, onBack, onUpdateCustomer }: Customer
 
   const toggleDate = (date: string) => {
     setExpandedDates(prev => ({ ...prev, [date]: !prev[date] }));
+  };
+
+  const toggleSession = (sessionId: string) => {
+    setExpandedSessions(prev => ({ ...prev, [sessionId]: !prev[sessionId] }));
   };
 
   const customerLocation = useMemo(() => {
@@ -271,6 +276,21 @@ export function CustomerDetails({ customer, onBack, onUpdateCustomer }: Customer
                     />
                   ) : (
                     <p className="text-slate-700 font-mono text-sm">{customer.phone}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono mb-1">Kode Referral</p>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-slate-900 font-bold tracking-wider font-mono bg-indigo-50 px-2 py-1 rounded inline-block text-sm border border-indigo-100">{customer.referralCode || 'BELUM ADA'}</p>
+                  </div>
+                  {customer.referralCode && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      Telah digunakan: <strong className="text-indigo-600">{customer.referralCount || 0} kali</strong>
+                      {((customer.referralCount || 0) > 0) && ` (Gratis internet ${Math.floor((customer.referralCount || 0) / 3)} bulan)`}
+                    </p>
                   )}
                 </div>
               </div>
@@ -577,24 +597,47 @@ export function CustomerDetails({ customer, onBack, onUpdateCustomer }: Customer
                         <div className="p-4 bg-white relative">
                           <div className="absolute left-6 top-0 bottom-0 w-px bg-slate-200/80"></div>
                           <div className="space-y-5 relative">
-                            {logs.map((log, i) => (
+                            {logs.map((log, i) => {
+                              const sessionId = `${dateStr}-${i}`;
+                              const isExpanded = expandedSessions[sessionId];
+                              return (
                               <div key={i} className="relative pl-6">
-                                <span className={`absolute left-[-21px] top-1 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${log.status === 'Terhubung' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                                <div className="flex flex-col gap-1">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5">
-                                      <Clock size={10} />
+                                <span className={`absolute left-[-21px] top-2 z-10 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ring-1 ring-slate-200 ${log.status === 'Terhubung' ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                                <div className="border border-slate-200/60 rounded-xl bg-white overflow-hidden shadow-sm transition-all hover:border-slate-300">
+                                  <button onClick={() => toggleSession(sessionId)} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
+                                    <p className="text-[10px] text-slate-600 font-mono flex items-center gap-1.5 font-medium">
+                                      <Clock size={12} className="text-slate-400" />
                                       {new Date(log.startTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                       {' - '}
                                       {log.endTime === 'Saat ini' ? 'Sekarang' : new Date(log.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                     </p>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-widest font-bold ${log.status === 'Terhubung' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                      {log.status}
-                                    </span>
-                                  </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase tracking-widest font-bold ${log.status === 'Terhubung' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                        {log.status}
+                                      </span>
+                                      {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+                                    </div>
+                                  </button>
+                                  {isExpanded && (
+                                    <div className="p-3 bg-slate-50 border-t border-slate-100 text-[10px] font-mono flex flex-col gap-2 relative">
+                                      <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-100">
+                                        <span className="text-slate-500">Durasi Sesi</span>
+                                        <span className="text-slate-700 font-semibold">{log.endTime === 'Saat ini' ? '-' : (Math.round((new Date(log.endTime).getTime() - new Date(log.startTime).getTime()) / 60000) + ' menit')}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-100">
+                                        <span className="text-slate-500">Alasan Putus</span>
+                                        <span className="text-slate-700 font-medium">{log.status === 'Terhubung' ? '-' : 'Timeout/Loss'}</span>
+                                      </div>
+                                      <div className="flex justify-between items-center bg-white p-2 rounded border border-slate-100">
+                                        <span className="text-slate-500">IP address</span>
+                                        <span className="text-slate-700 font-medium">{customer.ipAddress || 'Dynamic'}</span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       )}

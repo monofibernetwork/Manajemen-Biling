@@ -174,7 +174,13 @@ function OdpMarker({ odp }: { odp: Odp; key?: React.Key }) {
                         <div key={i} className="flex items-center justify-between text-xs py-2 px-2.5 bg-slate-50 hover:bg-slate-100 transition-colors rounded-xl border border-slate-100">
                           <div className="flex items-center gap-2.5 overflow-hidden">
                             <div className={`w-2 h-2 rounded-full flex-shrink-0 shadow-sm ${!isOnline ? 'bg-rose-500 shadow-rose-500/20' : 'bg-emerald-500 shadow-emerald-500/20'}`}></div>
-                            <span className="font-semibold text-slate-700 truncate">{name}</span>
+                            {typeof c === 'object' && c.id ? (
+                              <Link to={`/customers/${c.id}`} className="font-semibold text-primary-600 hover:text-primary-800 truncate underline decoration-primary-300/50 hover:decoration-primary-600 underline-offset-2">
+                                {name}
+                              </Link>
+                            ) : (
+                              <span className="font-semibold text-slate-700 truncate">{name}</span>
+                            )}
                           </div>
                           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${isOnline ? 'text-emerald-600 bg-emerald-100/50' : 'text-rose-600 bg-rose-100/50'}`}>
                             {isOnline ? 'Online' : 'Offline'}
@@ -313,6 +319,7 @@ export function OdpMap({ odps: propOdps, setOdps: _setOdps, customers = [] }: an
          if (realCust) {
            return {
              ...(typeof c === 'object' ? c : {name}),
+             id: realCust.id,
              status: realCust.status === 'online' ? 'Normal' : 'Loss',
              paymentStatus: realCust.paymentStatus,
              // Note: realCust doesn't have lat/lng but we keep c.location if it existed

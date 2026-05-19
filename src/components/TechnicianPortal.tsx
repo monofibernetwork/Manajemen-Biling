@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Calendar, CheckCircle, WifiHigh, MapPin, User, Phone, Play, Key, ExternalLink, CheckSquare, Activity, MessageCircle, X, Eye, Plus, Map as MapIcon, Loader2, CheckCircle2, Server, Video } from 'lucide-react';
+import { LogOut, Calendar, CheckCircle, WifiHigh, MapPin, User, Phone, Play, Key, ExternalLink, CheckSquare, Activity, MessageCircle, X, Eye, Plus, Map as MapIcon, Loader2, CheckCircle2, Server, Video, Trash2 } from 'lucide-react';
 
 import { ScanOnuModal } from './ScanOnuModal';
 import { CCTVMonitoring } from './CCTVMonitoring';
-import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
 interface WaNotification {
@@ -37,8 +37,8 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [techName, setTechName] = useState('');
+  const [techUsername, setTechUsername] = useState('');
+  const [techPassword, setTechPassword] = useState('');
 
   const [newTaskForm, setNewTaskForm] = useState({
     customerName: '',
@@ -52,13 +52,25 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
   const handleTechnicianLogin = async () => {
     setAuthError('');
     setIsAuthenticating(true);
+
+    if (!techUsername.trim() || !techPassword.trim()) {
+      setAuthError('Username dan password harus diisi.');
+      setIsAuthenticating(false);
+      return;
+    }
+
+    const authEmail = `${techUsername.toLowerCase().replace(/\s+/g, '')}@dreampaymanager.app`;
+
     try {
-      if (authMode === 'register' && techName.trim()) {
-        sessionStorage.setItem('pending_tech_registration', techName.trim());
-      }
-      await signInWithPopup(auth, googleProvider);
+      await signInWithEmailAndPassword(auth, authEmail, techPassword);
     } catch (err: any) {
-      setAuthError(err.message || 'Gagal login.');
+      if (err.code === 'auth/email-already-in-use') {
+         setAuthError('Username sudah digunakan.');
+      } else if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+         setAuthError('Username atau password salah.');
+      } else {
+         setAuthError(err.message || 'Gagal login.');
+      }
       setIsAuthenticating(false);
     }
   };
@@ -315,6 +327,33 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
     }
   };
 
+  const handleClearCompletedTasks = async () => {
+    const completedTasks = schedules.filter(s => s.status === 'closed');
+    if (completedTasks.length === 0) {
+      alert('Tidak ada tugas selesai (Closed Order) yang bisa dihapus.');
+      return;
+    }
+    
+    if (window.confirm(`Yakin ingin menghapus ${completedTasks.length} tugas yang sudah selesai? Tindakan ini tidak bisa dibatalkan.`)) {
+      setIsLoading(true);
+      try {
+        const { doc, deleteDoc } = await import('firebase/firestore');
+        const { db } = await import('../firebase');
+        
+        await Promise.all(
+          completedTasks.map(task => deleteDoc(doc(db, 'schedules', task.id)))
+        );
+        
+        setSchedules(prev => prev.filter(s => s.status !== 'closed'));
+      } catch (e) {
+        console.error('Failed to clear tasks:', e);
+        alert('Gagal menghapus tugas.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   const handleActivate = async (id: string, plan: string, scheduleData?: any) => {
     setProcessingId(id);
     
@@ -400,13 +439,19 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
   };
 
   const handleCloseOrder = async (id: string) => {
+    const isConfirmed = window.confirm('Mark as Completed?');
+    if (!isConfirmed) return;
+    
+    const techNotes = window.prompt('Add Notes? (Opsional)', '');
+    
     const chosenOdpId = selectedOdp[id];
     const scheduleDetail = schedules.find(s => s.id === id);
     
     await updateScheduleStatus(id, 'closed', { 
         onuRegistration: onuForm, 
         odp: chosenOdpId, 
-        cableLength: cableLength[id] 
+        cableLength: cableLength[id],
+        technicianNotes: techNotes || ''
     });
     
     const { collection, addDoc } = await import('firebase/firestore');
@@ -531,7 +576,7 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
                  Portal Teknisi <span style={{ color: branding?.primaryColorHex || '#ea580c' }}>{branding?.businessName || 'Access'}</span>
               </h2>
               <p className="text-sm text-slate-400 mt-2">
-                {authMode === 'login' ? 'Masuk ke aplikasi teknisi' : 'Daftar sebagai teknisi baru'} untuk pekerjaan pemasangan, maintenance, dan tiket.
+                Masuk ke aplikasi teknisi untuk pekerjaan pemasangan, maintenance, dan tiket.
               </p>
             </div>
             
@@ -542,12 +587,14 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
             )}
             
             <form onSubmit={(e) => { e.preventDefault(); handleTechnicianLogin(); }} className="space-y-4">
-               {authMode === 'register' && (
-                 <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nama Teknisi</label>
-                    <input type="text" required value={techName} onChange={e => setTechName(e.target.value)} placeholder="Masukkan nama lengkap" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 outline-none" />
-                 </div>
-               )}
+               <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Username</label>
+                  <input type="text" required value={techUsername} onChange={e => setTechUsername(e.target.value)} placeholder="Misal: budi_tek" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 outline-none" />
+               </div>
+               <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+                  <input type="password" required value={techPassword} onChange={e => setTechPassword(e.target.value)} placeholder="Minimal 6 karakter" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-indigo-500 outline-none" />
+               </div>
                
                <button
                  type="submit"
@@ -561,20 +608,12 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
                  {isAuthenticating ? (
                    <><div className="w-5 h-5 border-2 border-slate-500 border-t-transparent rounded-full animate-spin"></div> Memverifikasi...</>
                  ) : (
-                   <><User size={18} /> {authMode === 'login' ? 'Login' : 'Daftar'} via Google</>
+                   <>Login Sekarang</>
                  )}
                </button>
             </form>
 
             <div className="mt-8 pt-6 border-t border-slate-200/60 text-center flex flex-col gap-3">
-              <button
-                onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-                type="button"
-                className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/50"
-              >
-                <Plus size={18} /> {authMode === 'login' ? 'Belum punya akun? Daftar' : 'Sudah punya akun? Login'}
-              </button>
-              
               <button
                 onClick={onLogout}
                 type="button"
@@ -657,12 +696,20 @@ export function TechnicianPortal({ onLogout, odps = [], onUpdateOdp }: { onLogou
                   <Calendar className="text-orange-600" size={24} />
                   Jadwal Pemasangan Hari Ini
                 </h2>
-                <button
-                  onClick={() => setIsTaskModalOpen(true)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm"
-                >
-                  <Plus size={14} /> Tugas Baru
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsTaskModalOpen(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm"
+                  >
+                    <Plus size={14} /> Tugas Baru
+                  </button>
+                  <button
+                    onClick={handleClearCompletedTasks}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold rounded-lg hover:bg-slate-200 hover:text-slate-900 transition-colors shadow-sm"
+                  >
+                    <Trash2 size={14} /> Hapus Selesai
+                  </button>
+                </div>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
                 <div className="flex items-center gap-3 w-full sm:w-auto">

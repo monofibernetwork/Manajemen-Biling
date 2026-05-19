@@ -477,7 +477,9 @@ export function BillingTable({ customers, isWaBillingEnabled = true, onConfirmPa
     setTimeout(() => setNotification(null), 3000);
   };
 
-  return (
+      const totalRevenue = customers.filter(c => c.paymentStatus === 'paid').reduce((sum, c) => sum + c.billingAmount, 0);
+
+      return (
     <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden flex flex-col shadow-2xl relative">
       {/* Notification Toast */}
       {notification && (
@@ -696,12 +698,20 @@ export function BillingTable({ customers, isWaBillingEnabled = true, onConfirmPa
         </div>
       </div>
 
-      <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-white/50">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Payment Collections</h2>
-          <p className="text-[10px] text-slate-500 font-mono mt-1">Invoices for current billing cycle</p>
+      <div className="p-6 border-b border-slate-200 flex flex-col xl:flex-row items-center justify-between bg-white/50 gap-4">
+        <div className="flex items-center justify-between w-full xl:w-auto gap-6 sm:justify-start">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Payment Collections</h2>
+            <p className="text-[10px] text-slate-500 font-mono mt-1">Invoices for current billing cycle</p>
+          </div>
+          <div className="h-10 w-px bg-slate-200 hidden sm:block"></div>
+          <div>
+            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mb-1 hidden sm:block">Total Revenue (Paid)</p>
+            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest sm:hidden">Total</p>
+            <p className="text-lg font-bold text-emerald-600 tracking-tight">{formatCurrency(totalRevenue)}</p>
+          </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 w-full xl:w-auto overflow-x-auto pb-2 xl:pb-0 overflow-y-hidden text-sm">
           {selectedInvoiceIds.size > 0 && (
             <>
               <button 
@@ -772,7 +782,7 @@ export function BillingTable({ customers, isWaBillingEnabled = true, onConfirmPa
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-900 text-sm">{cust.name}</h4>
-                  <div className="text-[10px] text-slate-500 mt-0.5 font-mono">{cust.id}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5 font-mono">{cust.speedPlan || 'Unknown Plan'}</div>
                 </div>
               </div>
             </div>
@@ -804,31 +814,17 @@ export function BillingTable({ customers, isWaBillingEnabled = true, onConfirmPa
               </div>
               
               <div className="col-span-2 pt-2 mt-1 border-t border-slate-200/50 flex justify-between items-center">
-                <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold">WA Reminder</p>
+                <p className="text-[9px] text-slate-400 uppercase tracking-widest font-semibold">Jatuh Tempo</p>
                 <div>
-                  {!isWaBillingEnabled ? (
-                    <span className="text-[10px] text-slate-400 font-mono font-semibold uppercase tracking-widest">
-                      Not Enabled
-                    </span>
-                  ) : cust.paymentStatus === 'paid' ? (
-                    <span className="text-[10px] text-slate-400 font-mono">-</span>
-                  ) : cust.paymentStatus === 'overdue' ? (
-                    <span className="text-[10px] text-emerald-600 font-mono font-semibold uppercase tracking-widest flex items-center gap-1">
-                      <Check size={10} /> Sent
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-primary-600 font-mono font-semibold uppercase tracking-widest flex items-center gap-1">
-                      <Clock size={10} /> Scheduled
-                    </span>
-                  )}
+                  <span className="text-[10px] text-slate-600 font-mono font-semibold uppercase tracking-widest">
+                    {`10 ${new Date().toLocaleString('default', { month: 'short' })} ${new Date().getFullYear()}`}
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
-              <div className="text-[10px] text-slate-400 font-mono">
-                {cust.lastPaymentDate ? `Paid: ${formatShortDate(cust.lastPaymentDate)}` : 'No payments yet'}
-              </div>
+              <div></div>
               <div className="flex gap-2">
                 {cust.paymentStatus !== 'paid' ? (
                   <>
@@ -888,11 +884,10 @@ export function BillingTable({ customers, isWaBillingEnabled = true, onConfirmPa
                   onChange={handleSelectAll}
                 />
               </th>
-              <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">Invoice To</th>
-              <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">Amount</th>
+              <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">Pelanggan</th>
+              <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">Tagihan</th>
+              <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">Jatuh Tempo</th>
               <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">Status</th>
-              <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">WA Reminder</th>
-              <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase">Paid On</th>
               <th className="px-6 py-4 font-semibold text-xs tracking-wider uppercase text-right">Actions</th>
             </tr>
           </thead>
@@ -914,12 +909,15 @@ export function BillingTable({ customers, isWaBillingEnabled = true, onConfirmPa
                     </div>
                     <div>
                       <div className="font-semibold text-slate-900">{cust.name}</div>
-                      <div className="text-[10px] text-slate-500 font-mono">{cust.id}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">{cust.speedPlan || 'Unknown Plan'}</div>
                     </div>
                   </div>
                 </td>
                 <td className="px-6 py-4 font-mono font-medium text-slate-900 text-sm">
                   {formatCurrency(cust.billingAmount)}
+                </td>
+                <td className="px-6 py-4 text-slate-500 font-mono text-xs">
+                  {`10 ${new Date().toLocaleString('default', { month: 'short' })} ${new Date().getFullYear()}`}
                 </td>
                 <td className="px-6 py-4">
                   {cust.paymentStatus === 'paid' && (
@@ -945,26 +943,6 @@ export function BillingTable({ customers, isWaBillingEnabled = true, onConfirmPa
                       OVERDUE
                     </button>
                   )}
-                </td>
-                <td className="px-6 py-4">
-                  {!isWaBillingEnabled ? (
-                    <span className="text-[10px] text-slate-400 font-mono font-semibold uppercase tracking-widest border border-slate-200 bg-slate-50 px-2 py-1 rounded-md">
-                      Not Enabled
-                    </span>
-                  ) : cust.paymentStatus === 'paid' ? (
-                    <span className="text-[10px] text-slate-400 font-mono">-</span>
-                  ) : cust.paymentStatus === 'overdue' ? (
-                    <span className="text-[10px] text-emerald-600 font-mono font-semibold uppercase tracking-widest border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 rounded-md flex items-center inline-flex gap-1 w-max">
-                      <Check size={12} /> Sent
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-primary-600 font-mono font-semibold uppercase tracking-widest border border-primary-400/20 bg-primary-400/10 px-2 py-1 rounded-md flex items-center inline-flex gap-1 w-max">
-                      <Clock size={12} /> Scheduled
-                    </span>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-slate-500 font-mono text-xs">
-                  {cust.lastPaymentDate ? formatShortDate(cust.lastPaymentDate) : '-'}
                 </td>
                 <td className="px-6 py-4 text-right">
                   {cust.paymentStatus !== 'paid' ? (

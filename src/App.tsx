@@ -33,7 +33,10 @@ import {
   ChevronDown,
   ChevronRight,
   Camera,
-  Gift
+  Gift,
+  Building,
+  Sun,
+  Moon
 } from 'lucide-react';
   import { mockCustomers } from './mockData';
   import { NetworkTopology } from './components/NetworkTopology';
@@ -63,6 +66,7 @@ import {
   import { PaymentVerification } from './components/PaymentVerification';
   import { DashboardCharts } from './components/DashboardCharts';
   import { AccessManagement } from './components/AccessManagement';
+  import { TenantManagement } from './components/TenantManagement';
   import { MikrotikManager } from './components/MikrotikManager';
   import { CashFlow } from './components/CashFlow';
   import { PricingPlans } from './components/PricingPlans';
@@ -504,6 +508,18 @@ export default function App() {
   const [odps, setOdps] = useState<any[]>([]);
   const [isWaBillingEnabled, setIsWaBillingEnabled] = useLocalStorage('app_isWaBillingEnabled', true);
 
+  // Theme & Lang
+  const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('app_theme', 'dark');
+  const [lang, setLang] = useLocalStorage<'id' | 'en'>('app_lang', 'id');
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   const [tenantId, setTenantId] = useState<string>(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get('tenant') || 'default';
@@ -648,6 +664,7 @@ export default function App() {
     if (path === '/pricing-plans') return 'pricing_plans';
     if (path === '/promo-management') return 'promo_management';
     if (path === '/access-management') return 'access_management';
+    if (path === '/tenant-management') return 'tenant_management';
     return 'dashboard';
   };
   const activeTab = getActiveTab();
@@ -664,9 +681,18 @@ export default function App() {
   useEffect(() => {
     let unsubCustomers: () => void;
     let unsubOdps: () => void;
+    let unsubSession: () => void;
+    
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userEmail = (user.email || '').toLowerCase();
+        
+        // Single Device Login Logic
+        let localToken = sessionStorage.getItem('app_session_token');
+        if (!localToken) {
+          localToken = Math.random().toString(36).substring(2, 15);
+          sessionStorage.setItem('app_session_token', localToken);
+        }
         
         let hasAccess = false;
         let currentTenant = 'default';
@@ -678,10 +704,13 @@ export default function App() {
           hasAccess = true;
           currentTenant = 'biznet';
           currentRole = 'superadmin';
+          // Update owner session
+          setDoc(doc(db, 'system_users', userEmail), { sessionToken: localToken }, { merge: true }).catch(console.error);
         } else if (userEmail === 'adityaf90000@gmail.com' || userEmail === 'admin.aditya@dreampaymanager.app') {
           hasAccess = true;
           currentTenant = 'biznet';
           currentRole = 'admin';
+          setDoc(doc(db, 'system_users', userEmail), { sessionToken: localToken }, { merge: true }).catch(console.error);
         } else if (isTechnicianMode) {
           hasAccess = true;
           currentTenant = 'biznet';
@@ -696,23 +725,13 @@ export default function App() {
                 hasAccess = true;
                 currentTenant = data.tenantId || 'default';
                 currentRole = data.role || 'admin';
+                await setDoc(doc(db, 'system_users', userEmail), { sessionToken: localToken }, { merge: true });
               } else {
                 alert(`Akses Ditolak: Lisensi Anda expired atau disuspend.`);
               }
             } else {
-              // Jika baru mendaftar / tidak ada di system_users, izinkan dan otomatis buat data default
-              hasAccess = true;
-              currentTenant = user.uid || 'default'; // setiap user dapat tenant nya sendiri by default
-              currentRole = 'superadmin';
-              
-              // Simpan sebagai akun baru (Background task)
-              setDoc(doc(db, 'system_users', userEmail), {
-                email: userEmail,
-                status: 'active',
-                role: 'superadmin',
-                tenantId: currentTenant,
-                createdAt: new Date().toISOString()
-              }).catch(console.error);
+              alert(`Akses Ditolak: Akun Anda belum terdaftar di sistem. Hubungi administrator.`);
+              hasAccess = false;
             }
           } catch (e: any) {
             console.error('Verifikasi akses error', e);
@@ -744,6 +763,19 @@ export default function App() {
           await signOut(auth);
           setAppMode('login');
           return;
+        }
+
+        // Live monitor session token to enforce 1 device only
+        if (!isTechnicianMode) {
+           unsubSession = onSnapshot(doc(db, 'system_users', userEmail), (docSnap) => {
+              if (docSnap.exists()) {
+                 const data = docSnap.data();
+                 if (data.sessionToken && data.sessionToken !== localToken) {
+                    alert('Sesi Berakhir: Akun ini telah login di perangkat lain.');
+                    signOut(auth);
+                 }
+              }
+           });
         }
 
         setTenantId(currentTenant);
@@ -850,6 +882,7 @@ export default function App() {
       } else {
         if (unsubCustomers) unsubCustomers();
         if (unsubOdps) unsubOdps();
+        if (unsubSession) unsubSession();
         setAppMode('login');
       }
     });
@@ -858,6 +891,7 @@ export default function App() {
       unsubscribe();
       if (unsubCustomers) unsubCustomers();
       if (unsubOdps) unsubOdps();
+      if (unsubSession) unsubSession();
     };
   }, []);
 
@@ -908,7 +942,7 @@ export default function App() {
               )}
               <span className="font-bold text-lg tracking-tight flex items-center gap-2" style={{ color: branding?.primaryColorHex || '#ea580c' }}>
                 {branding?.businessName || 'Dream Paymanager'}
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 tracking-wider">v2.10</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 tracking-wider">v2.20.2</span>
               </span>
             </div>
             <button 
@@ -930,46 +964,46 @@ export default function App() {
 
   const allMenuGroups = [
     {
-      group: 'Utama',
+      group: lang === 'en' ? 'Main' : 'Utama',
       roles: ['superadmin', 'admin', 'finance', 'technical', 'cs', 'viewer'],
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['superadmin', 'admin', 'finance', 'technical', 'cs', 'viewer'] },
       ]
     },
     {
-      group: 'Administrasi',
+      group: lang === 'en' ? 'Administration' : 'Administrasi',
       roles: ['superadmin', 'admin', 'finance', 'cs', 'viewer'],
       items: [
-        { id: 'customers', label: 'Pelanggan', icon: Users, roles: ['superadmin', 'admin', 'finance', 'cs', 'viewer'] },
-        { id: 'billing', label: 'Tagihan & Pembayaran', icon: Wallet, roles: ['superadmin', 'admin', 'finance', 'viewer'] },
-        { id: 'payment_verification', label: 'Konfirmasi Pembayaran', icon: CheckCircle2, roles: ['superadmin', 'admin', 'finance'] },
-        { id: 'cashflow', label: 'Kas & Keuangan', icon: DollarSign, roles: ['superadmin', 'admin', 'finance', 'viewer'] },
-        { id: 'fup_management', label: 'Kebijakan FUP', icon: Shield, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'promo_management', label: 'Promosi & Diskon', icon: Gift, roles: ['superadmin', 'admin', 'finance'] },
+        { id: 'customers', label: lang === 'en' ? 'Customers' : 'Pelanggan', icon: Users, roles: ['superadmin', 'admin', 'finance', 'cs', 'viewer'] },
+        { id: 'billing', label: lang === 'en' ? 'Billing & Payments' : 'Tagihan & Pembayaran', icon: Wallet, roles: ['superadmin', 'admin', 'finance', 'viewer'] },
+        { id: 'payment_verification', label: lang === 'en' ? 'Payment Verification' : 'Konfirmasi Pembayaran', icon: CheckCircle2, roles: ['superadmin', 'admin', 'finance'] },
+        { id: 'cashflow', label: lang === 'en' ? 'Cash & Finance' : 'Kas & Keuangan', icon: DollarSign, roles: ['superadmin', 'admin', 'finance', 'viewer'] },
+        { id: 'fup_management', label: lang === 'en' ? 'FUP Policy' : 'Kebijakan FUP', icon: Shield, roles: ['superadmin', 'admin', 'technical'] },
+        { id: 'promo_management', label: lang === 'en' ? 'Promotions' : 'Promosi & Diskon', icon: Gift, roles: ['superadmin', 'admin', 'finance'] },
         { id: 'portal_member', label: 'Portal Member', icon: UserCircle, roles: ['superadmin', 'admin', 'cs'] },
       ]
     },
     {
-      group: 'Teknisi & Penugasan',
+      group: lang === 'en' ? 'Technicians & Tasks' : 'Teknisi & Penugasan',
       roles: ['superadmin', 'admin', 'technical', 'cs', 'viewer'],
       items: [
-        { id: 'new_installation', label: 'Pemasangan Baru', icon: CalendarDays, roles: ['superadmin', 'admin', 'technical', 'cs'] },
-        { id: 'installation_history', label: 'Riwayat Pemasangan', icon: History, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
-        { id: 'ticket_management', label: 'Tiket Gangguan (Troubleshooting)', icon: Wrench, roles: ['superadmin', 'admin', 'technical', 'cs', 'viewer'] },
-        { id: 'technician_tracking', label: 'Pelacakan Teknisi GPS', icon: MapIcon, roles: ['superadmin', 'admin', 'viewer'] },
+        { id: 'new_installation', label: lang === 'en' ? 'New Installation' : 'Pemasangan Baru', icon: CalendarDays, roles: ['superadmin', 'admin', 'technical', 'cs'] },
+        { id: 'installation_history', label: lang === 'en' ? 'Installation History' : 'Riwayat Pemasangan', icon: History, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'ticket_management', label: lang === 'en' ? 'Troubleshooting' : 'Tiket Gangguan (Troubleshooting)', icon: Wrench, roles: ['superadmin', 'admin', 'technical', 'cs', 'viewer'] },
+        { id: 'technician_tracking', label: lang === 'en' ? 'GPS Tracking' : 'Pelacakan Teknisi GPS', icon: MapIcon, roles: ['superadmin', 'admin', 'viewer'] },
       ]
     },
     {
-      group: 'Infrastruktur',
+      group: lang === 'en' ? 'Infrastructure' : 'Infrastruktur',
       roles: ['superadmin', 'admin', 'technical', 'viewer'],
       items: [
-        { id: 'network_topology', label: 'Topologi Jaringan', icon: Network, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
-        { id: 'mikrotik_manager', label: 'Bandwidth (MikroTik)', icon: Server, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
-        { id: 'olt_management', label: 'Manajemen OLT', icon: Server, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'odp_map', label: 'Peta ODP', icon: MapIcon, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
-        { id: 'remote_onu', label: 'Remote ONU (C-Data)', icon: Wifi, roles: ['superadmin', 'admin', 'technical'] },
+        { id: 'network_topology', label: lang === 'en' ? 'Network Topology' : 'Topologi Jaringan', icon: Network, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'mikrotik_manager', label: lang === 'en' ? 'Bandwidth (MikroTik)' : 'Bandwidth (MikroTik)', icon: Server, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'olt_management', label: lang === 'en' ? 'OLT Management' : 'Manajemen OLT', icon: Server, roles: ['superadmin', 'admin', 'technical'] },
+        { id: 'odp_map', label: lang === 'en' ? 'ODP Map' : 'Peta ODP', icon: MapIcon, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'remote_onu', label: lang === 'en' ? 'Remote ONU' : 'Remote ONU (C-Data)', icon: Wifi, roles: ['superadmin', 'admin', 'technical'] },
         { id: 'genia_acs', label: 'GeniaACS (TR-069)', icon: Server, roles: ['superadmin', 'admin', 'technical'] },
-        { id: 'inventory', label: 'Gudang & Inventaris', icon: Box, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
+        { id: 'inventory', label: lang === 'en' ? 'Inventory' : 'Gudang & Inventaris', icon: Box, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
       ]
     },
     {
@@ -979,18 +1013,19 @@ export default function App() {
         { id: 'monitoring', label: 'Monitoring SNMP', icon: Activity, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
         { id: 'odp_monitoring', label: 'Monitoring ODP', icon: Activity, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
         { id: 'cctv_monitoring', label: 'CCTV & DVR', icon: Camera, roles: ['superadmin', 'admin', 'technical', 'viewer'] },
-        { id: 'system_logs', label: 'Log Sistem', icon: Terminal, roles: ['superadmin', 'admin', 'viewer'] },
+        { id: 'system_logs', label: lang === 'en' ? 'System Logs' : 'Log Sistem', icon: Terminal, roles: ['superadmin', 'admin', 'viewer'] },
       ]
     },
     {
-      group: 'Pengaturan',
+      group: lang === 'en' ? 'Settings' : 'Pengaturan',
       roles: ['superadmin', 'admin'],
       items: [
-        { id: 'pricing_plans', label: 'Paket Berlangganan', icon: Shield, roles: ['superadmin'] },
-        { id: 'sync_setup', label: 'Setup Sinkronisasi', icon: RefreshCw, roles: ['superadmin', 'admin'] },
-        { id: 'user_profile', label: 'Profil Saya', icon: UserCircle, roles: ['superadmin', 'admin'] },
-        { id: 'settings', label: 'Sistem', icon: Settings, roles: ['superadmin', 'admin'] },
-        { id: 'access_management', label: 'Akses & Lisensi', icon: Shield, roles: ['superadmin'] },
+        { id: 'pricing_plans', label: lang === 'en' ? 'Plans & Pricing' : 'Paket Berlangganan', icon: Shield, roles: ['superadmin'] },
+        { id: 'sync_setup', label: lang === 'en' ? 'Sync Setup' : 'Setup Sinkronisasi', icon: RefreshCw, roles: ['superadmin', 'admin'] },
+        { id: 'user_profile', label: lang === 'en' ? 'My Profile' : 'Profil Saya', icon: UserCircle, roles: ['superadmin', 'admin'] },
+        { id: 'settings', label: lang === 'en' ? 'System Settings' : 'Sistem', icon: Settings, roles: ['superadmin', 'admin'] },
+        { id: 'access_management', label: lang === 'en' ? 'Access Control' : 'Akses & Lisensi', icon: Shield, roles: ['superadmin'] },
+        { id: 'tenant_management', label: lang === 'en' ? 'Tenant Management' : 'Manajemen Penyewa', icon: Building, roles: ['superadmin'] },
       ]
     }
   ];
@@ -999,8 +1034,16 @@ export default function App() {
     .filter(g => g.roles.includes(adminRole))
     .map(g => ({
       ...g,
-      items: g.items.filter(i => (i.roles && i.roles.includes(adminRole)) && 
-        i.label.toLowerCase().includes(menuSearchQuery.toLowerCase()))
+      items: g.items.filter(i => {
+        if (i.id === 'tenant_management') {
+           const email = auth.currentUser?.email;
+           if (email !== 'adityabiznet@gmail.com' && email !== 'owner.aditya@dreampaymanager.app') {
+              return false;
+           }
+        }
+        return (i.roles && i.roles.includes(adminRole)) && 
+        i.label.toLowerCase().includes(menuSearchQuery.toLowerCase());
+      })
     }))
     .filter(g => g.items.length > 0);
 
@@ -1054,7 +1097,7 @@ export default function App() {
             <div>
               <h1 className="font-bold text-lg text-slate-900 tracking-tight flex items-center gap-2">
                 {branding?.businessName || 'Dream Paymanager'}
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 tracking-wider">v2.10</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 tracking-wider">v2.20.2</span>
               </h1>
               <p className="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Gateway-01</p>
             </div>
@@ -1105,23 +1148,27 @@ export default function App() {
                   </button>
                 )}
                 {isExpanded && (
-                  <div className="space-y-0.5">
-                    {group.items.map((tab) => {
+                  <div className="grid grid-cols-2 gap-2">
+                    {group.items.map((tab, i) => {
                       const Icon = tab.icon;
                       const isActive = activeTab === tab.id;
+                      const isOddAndFirst = group.items.length % 2 !== 0 && i === 0;
                       return (
                         <button
                           key={tab.id}
                           onClick={() => { navigate(getPathForTab(tab.id)); setIsSidebarOpen(false); }}
                           title={tab.label}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors border border-transparent ${
+                          className={`relative overflow-hidden flex flex-col items-start gap-2 p-3 rounded-2xl transition-all border ${isOddAndFirst ? 'col-span-2' : 'col-span-1'} ${
                             isActive 
-                              ? 'bg-primary-50 text-primary-700 font-medium' 
-                              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                              ? 'bg-primary-50/80 text-primary-800 shadow-sm border-primary-200' 
+                              : 'bg-white shadow-sm border-slate-200/60 text-slate-600 hover:bg-slate-50 hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5'
                           }`}
                         >
-                          <Icon size={18} strokeWidth={isActive ? 2.5 : 2} className={`shrink-0 ${isActive ? 'text-primary-600' : 'text-slate-400'}`} />
-                          <span className="text-sm truncate">{tab.label}</span>
+                          <div className={`p-2 rounded-xl ${isActive ? 'bg-white shadow-sm text-primary-600' : 'bg-slate-100/50 text-slate-500'}`}>
+                            <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
+                          </div>
+                          <span className="text-[11px] font-bold tracking-wide text-left leading-tight">{tab.label}</span>
+                          {isActive && <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-primary-500"></div>}
                         </button>
                       );
                     })}
@@ -1220,6 +1267,26 @@ export default function App() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              <div className="relative">
+                <button 
+                  onClick={() => setLang(lang === 'id' ? 'en' : 'id')}
+                  className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 flex items-center gap-2 font-bold text-xs"
+                  title="Toggle Language"
+                >
+                  {lang === 'id' ? 'ID' : 'EN'}
+                </button>
+              </div>
+
+              <div className="relative">
+                <button 
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 flex items-center gap-2"
+                  title="Toggle Theme"
+                >
+                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                </button>
               </div>
 
               <div className="relative" ref={notificationRef}>
@@ -1420,6 +1487,9 @@ export default function App() {
             } />
             <Route path="/access-management" element={
               <AccessManagement />
+            } />
+            <Route path="/tenant-management" element={
+              <TenantManagement />
             } />
           </Routes>
         </div>

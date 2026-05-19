@@ -1,16 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { MessageSquare, X, Send, Bot, User, Loader2, HeadphonesIcon } from 'lucide-react';
-import { GoogleGenAI } from '@google/genai';
 import ReactMarkdown from 'react-markdown';
-
-// Initialize the Gemini API client lazily to avoid startup crash if env is missing
-const getAiClient = () => {
-  if (process.env.GEMINI_API_KEY) {
-    return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  }
-  return null;
-};
-const MODEL_NAME = 'gemini-3-flash-preview';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -53,30 +43,34 @@ export function ChatWidget() {
     setIsLoading(true);
 
     if (mode === 'ai') {
-      setAiMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-      const ai = getAiClient();
-      
-      if (!ai) {
-        setAiMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, kunci API Gemini tidak ditemukan. AI tidak aktif.' }]);
-        setIsLoading(false);
-        return;
-      }
+      const newMessages = [...aiMessages, { role: 'user' as const, content: userMessage }];
+      setAiMessages(newMessages);
 
       try {
-        if (!chatSessionRef.current) {
-          chatSessionRef.current = ai.chats.create({
-            model: MODEL_NAME,
-            config: {
-              systemInstruction: "Anda adalah asisten virtual terintegrasi di dalam aplikasi Manajemen Jaringan. Aplikasi ini memiliki fitur: Dashboard (ringkasan pelanggan & pendapatan), Pelanggan (manajemen data pelanggan & status ONT), Tagihan & Pembayaran (integrasi Midtrans & WA Blast), Peta ODP (koodinat ODP), dan Monitoring SNMP. Jawab pertanyaan pengguna mengenai cara menggunakan atau fungsi aplikasi dengan ramah, profesional, ringkas, dan format Markdown jika perlu.",
-            }
-          });
+        const history = newMessages.slice(1).map(m => ({
+          role: m.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: m.content }]
+        }));
+
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: userMessage, history })
+        });
+
+        if (!res.ok) {
+          throw new Error('Network response was not ok');
         }
+
+        const data = await res.json();
         
-        const response = await chatSessionRef.current.sendMessage({ message: userMessage });
-        
+        if (data.error) {
+           throw new Error(data.error);
+        }
+
         setAiMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: response.text || 'Maaf, saya tidak dapat memproses permintaan Anda saat ini.' 
+          content: data.text || 'Maaf, saya tidak dapat memproses permintaan Anda saat ini.' 
         }]);
       } catch (error) {
         console.error("Chat error:", error);

@@ -50,9 +50,7 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
       // Simulate API call to MikroTik router to fetch live PPPoE stats
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      if (!setCustomers) return;
-      
-      const newCustomers = customers.map(cust => {
+      const updatePromises = customers.map(async cust => {
         // Randomly simulate some customers changing state
         const isOnline = Math.random() > 0.15; // 85% chance online
         const newUptime = isOnline ? `${Math.floor(Math.random() * 24)}h ${Math.floor(Math.random() * 60)}m` : '0h 0m 0s';
@@ -60,24 +58,36 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
         const newCurrentUpload = isOnline ? (Math.random() * 20).toFixed(1) + ' Mbps' : '0 Mbps';
         const newCurrentDownload = isOnline ? (Math.random() * 50).toFixed(1) + ' Mbps' : '0 Mbps';
 
-        return {
-          ...cust,
+        const updatedData = {
           status: isOnline ? 'online' : 'offline',
           uptime: cust.status === 'isolir' ? cust.uptime : newUptime,
           ontRxPower: cust.status === 'isolir' ? cust.ontRxPower : newRxPower,
           currentUpload: cust.status === 'isolir' ? '0 Mbps' : newCurrentUpload,
           currentDownload: cust.status === 'isolir' ? '0 Mbps' : newCurrentDownload
         };
+
+        await updateDoc(doc(db, 'customers', cust.id), updatedData);
+        
+        return {
+          ...cust,
+          ...updatedData
+        };
       });
 
-      // We only update locally to simulate the UI change immediately for demo purposes
-      // In a real app we'd update Firestore or just display the fetched remote data
-      setCustomers(newCustomers as Customer[]);
+      const newCustomers = await Promise.all(updatePromises);
+
+      if (setCustomers) {
+        setCustomers(newCustomers as Customer[]);
+      }
+      
+      setNotification({ message: 'Sinkronisasi berhasil', type: 'success' });
       
     } catch (err) {
       console.error(err);
+      setNotification({ message: 'Sinkronisasi gagal', type: 'error' });
     } finally {
       setIsSyncing(false);
+      setTimeout(() => setNotification(null), 3000);
     }
   };
 
@@ -104,7 +114,7 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
   }, []);
 
   const [newUser, setNewUser] = useState({
-    name: '', address: '', phone: '', pppoeUsername: '', pppoePassword: '', ontSerialNumber: '', speedPlan: '50 Mbps'
+    name: '', address: '', phone: '', pppoeUsername: '', pppoePassword: '', ontSerialNumber: '', speedPlan: '50 Mbps', referredByCode: ''
   });
   const [notification, setNotification] = useState<{message: string, type: 'success'|'error'} | null>(null);
 
@@ -196,6 +206,27 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
     e.preventDefault();
     if (!setCustomers) return;
 
+    if (!newUser.name.trim()) {
+      setFormError('Nama pelanggan tidak boleh kosong.');
+      return;
+    }
+    if (!newUser.phone.trim() || !/^\d{10,15}$/.test(newUser.phone.replace(/\D/g, ''))) {
+      setFormError('Nomor telepon harus berupa angka (10-15 digit).');
+      return;
+    }
+    if (!newUser.address.trim()) {
+      setFormError('Alamat tidak boleh kosong.');
+      return;
+    }
+    if (!newUser.pppoeUsername.trim() || /\s/.test(newUser.pppoeUsername)) {
+      setFormError('Username PPPoE tidak boleh kosong dan tidak boleh mengandung spasi.');
+      return;
+    }
+    if (!newUser.speedPlan.trim()) {
+      setFormError('Paket harus dipilih.');
+      return;
+    }
+    
     if (newUser.ontSerialNumber && !/^[a-zA-Z0-9]{12,16}$/.test(newUser.ontSerialNumber)) {
       setFormError('SN ONT tidak valid! Harus berupa 12-16 karakter alphanumeric.');
       return;
@@ -211,6 +242,24 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
       if (newUser.speedPlan === '200 Mbps') billingAmount = 330000;
 
       const newId = `CUST-00${Date.now().toString().slice(-4)}`;
+      const generatedReferralCode = newId.replace('-', '') + Math.random().toString(36).substring(2, 5).toUpperCase();
+      let referredByRefId = null;
+
+      if (newUser.referredByCode) {
+        const referredCustomer = customers.find(c => c.referralCode === newUser.referredByCode);
+        if (referredCustomer) {
+          referredByRefId = referredCustomer.id;
+          const currentCount = referredCustomer.referralCount || 0;
+          const newCount = currentCount + 1;
+          
+          let updatesToReferrer: any = { referralCount: newCount };
+          if (newCount % 3 === 0) {
+             updatesToReferrer.billingAmount = 0; // free internet for 1 month
+          }
+          await updateDoc(doc(db, 'customers', referredCustomer.id), updatesToReferrer);
+        }
+      }
+
       const newCustomer: Customer = {
         id: newId,
         name: newUser.name,
@@ -225,14 +274,19 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
         uptime: '0h 0m 0s',
         paymentStatus: 'unpaid',
         billingAmount: billingAmount,
+        referralCode: generatedReferralCode,
+        referredBy: referredByRefId || undefined,
+        referralCount: 0,
         tenantId
       } as any;
 
       await setDoc(doc(db, 'customers', newCustomer.id), newCustomer);
 
       setIsAddFormOpen(false);
-      setNewUser({ name: '', address: '', phone: '', pppoeUsername: '', pppoePassword: '', ontSerialNumber: '', speedPlan: '50 Mbps' });
-      alert(`Customer added to Database. WA Notification sent to ${newCustomer.phone} automatically.`);
+      setNewUser({ name: '', address: '', phone: '', pppoeUsername: '', pppoePassword: '', ontSerialNumber: '', speedPlan: '50 Mbps', referredByCode: '' });
+      let msg = `Customer added to Database.`;
+      if (referredByRefId) msg += ` Referral accepted!`;
+      alert(msg);
     } catch (err: any) {
       setFormError('Error saving to Database: ' + err.message);
     } finally {
@@ -571,6 +625,10 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
                   <option value="200 Mbps">200 Mbps (Rp 330.000)</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Kode Referral (Opsional)</label>
+                <input type="text" value={newUser.referredByCode} onChange={e => setNewUser({...newUser, referredByCode: e.target.value})} placeholder="Masukkan kode referral teman" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-primary-600 font-mono uppercase" />
+              </div>
               
               <div className="flex justify-end gap-3 pt-4 mt-2 border-t border-slate-200">
                 <button type="button" onClick={() => setIsAddFormOpen(false)} className="px-4 py-2 hover:bg-white text-slate-700 rounded-xl text-sm font-semibold transition-colors border border-slate-200">Batal</button>
@@ -662,7 +720,7 @@ export function CustomerTable({ customers, setCustomers }: CustomerTableProps) {
           >
             <Server size={14} className={isSyncing ? "animate-pulse" : ""} />
             <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
-            {isSyncing ? "Syncing..." : "Sync MikroTik"}
+            {isSyncing ? "Menyinkronkan..." : "Sinkronisasi Data"}
           </button>
           <button onClick={handleExportHtml} className="bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-4 rounded-xl text-xs transition-colors flex items-center gap-2 whitespace-nowrap shadow-sm">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
